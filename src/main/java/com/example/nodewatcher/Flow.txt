@@ -1,0 +1,10 @@
+There are three components in the application.
+  1)//Discovery : Client sends the discovery requests to app.
+  2)App first checks that whether the device is pingable or not.
+  3)if device is pingable save the data in database  and give the response as saved in db.
+  4)if not pingble save the data  and send response as ip is not in reach
+  5) //Provision :Client sends to provision the discovery  , first check if the discovery is in the table, if yes then set the isprovision filed to true and send the details to plugin.
+  6) //Polling: Now App will collect the data of every provisioned device from plugin and dump in the database.
+  7) //Polling : Plugin app receives data through zmq from app and then it collects the data and it sends the data back to
+            application. Application then dumps the data in database.
+  Application periodically sends the requests to plugin for new data collections.and step 7 continues.
