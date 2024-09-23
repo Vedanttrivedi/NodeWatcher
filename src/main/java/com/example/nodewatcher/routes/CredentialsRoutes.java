@@ -11,14 +11,17 @@ import io.vertx.ext.web.handler.TimeoutHandler;
 import io.vertx.mysqlclient.MySQLPool;
 import io.vertx.sqlclient.SqlClient;
 import io.vertx.sqlclient.Tuple;
-import java.time.LocalDateTime;
 
-public class CredentialsRoutes
-{
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.time.LocalDateTime;
+import java.util.Base64;
+
+public class CredentialsRoutes {
   static CredentialDB credentialDB = new CredentialDB();
 
-  public static void attach(Router router, SqlClient sqlClient)
-  {
+  public static void attach(Router router, SqlClient sqlClient) {
 
     router.post("/credential/create")
 
@@ -49,8 +52,7 @@ public class CredentialsRoutes
   }
 
 
-  static void createCredential(RoutingContext context, SqlClient sqlClient)
-  {
+  static void createCredential(RoutingContext context, SqlClient sqlClient) {
 
     var name = context.request().getFormAttribute("name");
 
@@ -58,80 +60,76 @@ public class CredentialsRoutes
 
     var password = context.request().getFormAttribute("password");
 
-    if(password.length() < 8)
-    {
+    if (password.length() < 8) {
       context.response().end("Password Length Must be 8");
       return;
     }
 
-    if(username.trim().length()  <= 0 || name.trim().length() <= 0 )
-    {
+    if (username.trim().length() <= 0 || name.trim().length() <= 0) {
       context.response().end("Username and Name must not be empty");
       return;
     }
 //    var protocol = context.request().getFormAttribute("protocol");
-      var protocol = 1;//1 for ssh , 2 for winrm
+    var protocol = 1;//1 for ssh , 2 for winrm
 
     Future<Void> result = credentialDB.save(sqlClient,
-      new Credential(name,username,password, LocalDateTime.now().toString(),1));
+      new Credential(name, username, password, LocalDateTime.now().toString(), 1));
 
-    result.onSuccess(queryResult->{
+    result.onSuccess(queryResult -> {
 
         context.response().end("<h1 Credentials added</h1>");
 
-    }).
-      onFailure(queryFailure->
+      }).
+      onFailure(queryFailure ->
       {
 
-        if(result.cause().getLocalizedMessage().contains("Duplicate"))
+        if (result.cause().getLocalizedMessage().contains("Duplicate"))
           context.response().end("<h1> Duplicate Entry For Credential Name </h1>");
 
         else
-          context.response().end("<h1> "+result.cause().getLocalizedMessage()+"</h1>");
+          context.response().end("<h1> " + result.cause().getLocalizedMessage() + "</h1>");
 
       });
 
   }
 
   // Method to retrieve a specific credential by name
-  static void getCredential(RoutingContext context, SqlClient sqlClient)
-  {
+  static void getCredential(RoutingContext context, SqlClient sqlClient) {
     var name = context.pathParam("name").trim();
 
-    if(name.length() <= 0)
+    if (name.length() <= 0)
       context.response().end("Error");
 
-    System.out.println("For Param "+name);
+    System.out.println("For Param " + name);
 
-    Future<JsonObject>getResult = credentialDB.getCredential(sqlClient,name);
+    Future<JsonObject> getResult = credentialDB.getCredential(sqlClient, name);
 
-    getResult.onFailure(failureHandler->{
+    getResult.onFailure(failureHandler -> {
 
-      context.response().end("Credentials Not Found "+failureHandler.getMessage());
+        context.response().end("Credentials Not Found " + failureHandler.getMessage());
 
-    }).
-      onSuccess(successHandler->{
+      }).
+      onSuccess(successHandler -> {
 
         context.response().end(successHandler.encodePrettily());
 
-    });
+      });
 
   }
 
   // Method to retrieve all credentials
-  static void getAllCredential(RoutingContext context, SqlClient sqlClient)
-  {
+  static void getAllCredential(RoutingContext context, SqlClient sqlClient) {
 
     System.out.println("Need All Credentials");
 
     credentialDB.getCredential(sqlClient)
 
-      .onFailure(failureHandler->{
+      .onFailure(failureHandler -> {
 
-        context.response().end("Something went wrong! "+failureHandler.getLocalizedMessage());
+        context.response().end("Something went wrong! " + failureHandler.getLocalizedMessage());
 
       })
-      .onSuccess(successHandler->{
+      .onSuccess(successHandler -> {
 
         context.response().end(successHandler.encodePrettily());
 
@@ -139,8 +137,7 @@ public class CredentialsRoutes
   }
 
   // Method to update a credential by name
-  static void updateCredential(RoutingContext context, SqlClient sqlClient)
-  {
+  static void updateCredential(RoutingContext context, SqlClient sqlClient) {
 
     var name = context.pathParam("name");
 
@@ -148,49 +145,67 @@ public class CredentialsRoutes
 
     var username = context.request().getFormAttribute("username");
 
-    if(username.trim().isEmpty() || name.trim().isEmpty()|| newName.trim().isEmpty())
+    if (username.trim().isEmpty() || name.trim().isEmpty() || newName.trim().isEmpty())
       context.response().end("Username,Updated Name and Old Credential name are required");
 
     var password = context.request().getFormAttribute("password");
 
-    if(password.length() < 8 )
+    if (password.length() < 8)
       context.response().end("password length must be 8 characters");
 
     var protocol = 1;
 
-   credentialDB.updateCredential(sqlClient,name,
-     new Credential(newName,username,password,LocalDateTime.now().toString(),1))
+    credentialDB.updateCredential(sqlClient, name,
+        new Credential(newName, username, password, LocalDateTime.now().toString(), 1))
 
-     .onSuccess(successHandler->{
+      .onSuccess(successHandler -> {
 
-       context.response().end("Success : Row Updated");
+        context.response().end("Success : Row Updated");
 
-     })
-     .onFailure(failureHandler->{
+      })
+      .onFailure(failureHandler -> {
 
-       context.response().end("Error : "+failureHandler.getLocalizedMessage());
+        context.response().end("Error : " + failureHandler.getLocalizedMessage());
 
-     });
+      });
 
   }
 
-  static void deleteCredential(RoutingContext context, SqlClient sqlClient)
-  {
+  static void deleteCredential(RoutingContext context, SqlClient sqlClient) {
 
     var name = context.pathParam("name");
 
-    credentialDB.deleteCredential(sqlClient,name)
+    credentialDB.deleteCredential(sqlClient, name)
 
-      .onSuccess(successHandler->{
+      .onSuccess(successHandler -> {
 
-        System.out.println("Success Result : "+successHandler);
+        System.out.println("Success Result : " + successHandler);
 
       })
 
-      .onFailure(failureHandler->{
+      .onFailure(failureHandler -> {
 
-        System.out.println("failure Result "+failureHandler.getMessage());
+        System.out.println("failure Result " + failureHandler.getMessage());
 
       });
+  }
+
+  static String hashPassword(String password)
+  {
+    try
+    {
+
+      MessageDigest digest = MessageDigest.getInstance("SHA-256");
+
+      byte[] hashedBytes = digest.digest(password.getBytes(StandardCharsets.UTF_8));
+
+      return Base64.getEncoder().encodeToString(hashedBytes);
+
+    }
+    catch (Exception exception) {
+
+      return null;
+
+    }
   }
 }

@@ -11,7 +11,7 @@ public class CpuDB
 {
   //this class does all memory dump operations
 
-  public void saveCpu(SqlClient sqlClient, Cpu_Metric cpuMetric, Timestamp timestamp)
+  public static void save(SqlClient sqlClient, Cpu_Metric cpuMetric, Timestamp timestamp)
   {
 
     System.out.println("In the save cpu "+cpuMetric.ip()+"sql client :"+sqlClient);

@@ -17,7 +17,6 @@ public class PingVertical extends AbstractVerticle
   @Override
   public void start()
   {
-    System.out.println("Ping Verticle Loaded!");
 
     vertx.eventBus().<JsonObject>consumer(Address.pingCheck, this::handlePingRequest);
 
@@ -33,13 +32,13 @@ public class PingVertical extends AbstractVerticle
 
       onComplete(result->{
 
+        System.out.println("Ping promise completed "+result.result());
+
         if(result.succeeded())
         {
-          boolean reachable = result.result();
-
           System.out.println("Device is reached");
 
-          message.reply(reachable?"Device is up":"Device is down");
+          message.reply("Device is up");
 
         }
         else
@@ -47,8 +46,8 @@ public class PingVertical extends AbstractVerticle
 
       });
 
-
   }
+
   private Future<Boolean> canPing(String ip,int port)
   {
     var promise = Promise.<Boolean>promise();
@@ -86,7 +85,7 @@ public class PingVertical extends AbstractVerticle
           promise.complete(true);
 
         else
-          promise.complete(false);
+          promise.fail("Device is Down!");
 
       }
       catch (IOException e)

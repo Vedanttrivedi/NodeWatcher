@@ -2,111 +2,70 @@ package com.example.nodewatcher;
 
 import com.example.nodewatcher.db.DatabaseClient;
 import com.example.nodewatcher.service.*;
-import com.example.nodewatcher.utils.Address;
-import io.vertx.core.DeploymentOptions;
-import io.vertx.core.ThreadingModel;
+import io.vertx.core.Future;
 import io.vertx.core.Vertx;
 import io.vertx.core.VertxOptions;
-import io.vertx.core.json.JsonObject;
-import io.vertx.core.json.impl.JsonUtil;
 import io.vertx.mysqlclient.MySQLPool;
-import io.vertx.sqlclient.SqlClient;
-import org.zeromq.SocketType;
-import org.zeromq.ZContext;
-import org.zeromq.ZMQ;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import java.util.logging.*;
-import java.util.concurrent.TimeUnit;
-
 
 public class Main
 {
-  static Logger LOGGER =
-    Logger.getLogger(Logger.GLOBAL_LOGGER_NAME);
+  private static final Logger LOGGER = Logger.getLogger(Main.class.getName());
 
   public static void main(String[] args)
   {
+    Vertx vertx = setupVertx();
 
-    var vertx = Vertx.vertx(
-      new VertxOptions()
-      .setWorkerPoolSize(30).
-        setMaxWorkerExecuteTime(70).
-      setMaxWorkerExecuteTimeUnit(TimeUnit.SECONDS)
-    );
-
-    SqlClient client = DatabaseClient.getClient(vertx);
-
-    ZContext context;
-
-    ZMQ.Socket socket;
-
-    ZMQ.Socket pluginReceiverSocket;
-
-    LogManager lgmngr = LogManager.getLogManager();
-
-    Logger log = lgmngr.getLogger(Logger.GLOBAL_LOGGER_NAME);
-
-    vertx.deployVerticle(new PluginDBDumper(client));
+    MySQLPool databaseClient = DatabaseClient.getClient(vertx);
 
     try
     {
-      context = new ZContext();
 
-      socket = context.createSocket(SocketType.PUSH);
+      Thread thread = new Thread(new PluginDataReceiver(vertx));
 
-      socket.bind("tcp://localhost:4555");
+      thread.start();
 
-      pluginReceiverSocket = context.createSocket(SocketType.PULL);
+      Future.join(
 
-      pluginReceiverSocket.connect("tcp://localhost:4556");
+          vertx.deployVerticle(new PingVertical()),
 
-      vertx.deployVerticle(new PluginVertical(client,socket),pluginLoaded->{
+          vertx.deployVerticle(new MainVertical(databaseClient)),
 
-        if(pluginLoaded.succeeded())
-        {
+          vertx.deployVerticle(new PluginDataSender(databaseClient)),
 
-          vertx.deployVerticle(new PluginCpu(socket));
+          vertx.deployVerticle(new PluginDataSaver(databaseClient))
 
-          vertx.deployVerticle(new PluginMemory(socket));
+        ).
+        onComplete(verticalDeploymentResult->{
 
-          vertx.deployVerticle(new PingVertical());
+          if(verticalDeploymentResult.succeeded())
+          {
+            LOGGER.log(Level.FINER,"All the verticals are deployed");
+          }
+          else
+            LOGGER.log(Level.SEVERE,"Something went wrong while deploying vertical "+verticalDeploymentResult.cause());
 
-          vertx.deployVerticle(new MainVertical(client,socket),
-
-            handler ->
-            {
-              if (handler.succeeded())
-                log.log(Level.INFO,"Plugin loaded");
-
-              else
-                log.log(Level.SEVERE,handler.cause().toString()+" Main vertical ");
-
-            });
-        }
-        else
-          log.log(Level.SEVERE,pluginLoaded.cause().toString()+" Plugin vertical ");
-
-      });
-
-
-
-      while (true)
-      {
-        System.out.println("Loader ");
-
-        var dataOfMetric = pluginReceiverSocket.recvStr();
-
-        vertx.eventBus().send(Address.dumpDB,dataOfMetric);
-
-      }
+        });
     }
+
     catch (Exception exception)
     {
-
-      log.log(Level.SEVERE,exception.toString()+" Main Application ");
-
+        LOGGER.log(Level.SEVERE,"Exception "+exception.getMessage());
     }
+
+  }
+
+  private static Vertx setupVertx()
+  {
+
+    return Vertx.vertx(new VertxOptions()
+      .setWorkerPoolSize(30)
+      .setMaxWorkerExecuteTime(70)
+      .setMaxWorkerExecuteTimeUnit(TimeUnit.SECONDS)
+    );
+
   }
 
 }

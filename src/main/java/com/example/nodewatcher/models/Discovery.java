@@ -12,6 +12,15 @@ public class Discovery
 
   private String time;
 
+  public Discovery(int id, String name, int credentialId, String ip, boolean isProvisioned, String created_at) {
+    this.id = id;
+    this.name = name;
+    this.credentialId = credentialId;
+    this.ip = ip;
+    this.isProvisioned = isProvisioned;
+    this.created_at = created_at;
+  }
+
   public String getIp() {
     return ip;
   }
@@ -20,20 +29,8 @@ public class Discovery
     this.ip = ip;
   }
 
-  public String getTime() {
-    return time;
-  }
-
-  public void setTime(String time) {
-    this.time = time;
-  }
-
   private  String ip;
-  public boolean isProvisioned()
-  {
-    return isProvisioned;
-  }
-  public JsonObject toJson()
+  public JsonObject toJson(String status)
   {
     var jsonObject = new JsonObject();
     jsonObject.put("id",id);
@@ -42,12 +39,8 @@ public class Discovery
     jsonObject.put("created_at",created_at);
     jsonObject.put("isProvisioned",isProvisioned);
     jsonObject.put("ip",ip);
-
+    jsonObject.put("status",status);
     return jsonObject;
-  }
-  public void setProvisioned(boolean provisioned)
-  {
-    isProvisioned = provisioned;
   }
 
   private boolean isProvisioned;

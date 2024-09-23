@@ -2,10 +2,6 @@ package com.example.nodewatcher.models;
 
 import io.vertx.core.json.JsonObject;
 
-import java.sql.Timestamp;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-
 public record Memory_Metric(String ip, int free, int used, int swap, int cached, int disk_space, boolean status)
 {
   public static Memory_Metric fromJson(JsonObject object)

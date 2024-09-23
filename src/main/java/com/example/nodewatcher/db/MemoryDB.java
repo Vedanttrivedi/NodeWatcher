@@ -1,6 +1,9 @@
 package com.example.nodewatcher.db;
 
 import com.example.nodewatcher.models.Memory_Metric;
+import io.vertx.core.Future;
+import io.vertx.core.json.JsonArray;
+import io.vertx.core.json.JsonObject;
 import io.vertx.sqlclient.SqlClient;
 import io.vertx.sqlclient.Tuple;
 
@@ -8,16 +11,10 @@ import java.sql.Timestamp;
 
 public class MemoryDB
 {
-  //this class does all memory dump operations
-
-  public void saveMemory(SqlClient sqlClient, Memory_Metric memoryMetric, Timestamp timestamp)
+  public static void saveMemory(SqlClient sqlClient, Memory_Metric memoryMetric, Timestamp timestamp)
   {
 
-    System.out.println("In the save memroyrrrrrrrrrrr "+memoryMetric.ip()+"sql client :"+sqlClient);
-
-
     var discoveryIp = memoryMetric.ip();
-
 
     sqlClient.preparedQuery("SELECT id FROM Discovery WHERE ip = ?")
 
@@ -59,5 +56,58 @@ public class MemoryDB
         }
       });
 
+  }
+  public Future<JsonArray> getMemoryMetrics(SqlClient sqlClient, String discoveryName)
+  {
+
+    var query = "SELECT m.* FROM Memory_Metric m " +
+      "JOIN Discovery d ON m.discoveryId = d.id " +
+      "WHERE d.name = ?";
+
+    return sqlClient.preparedQuery(query)
+      .execute(Tuple.of(discoveryName))
+      .map(rows -> {
+        JsonArray metricsArray = new JsonArray();
+        rows.forEach(row -> {
+          JsonObject metric = new JsonObject()
+            .put("created_at", row.getLocalDateTime("created_at").toString())
+            .put("free", row.getLong("free"))
+            .put("used", row.getLong("used"))
+            .put("swap", row.getLong("swap"))
+            .put("disc_used", row.getLong("disc_used"))
+            .put("cache", row.getLong("cache"));
+          metricsArray.add(metric);
+        });
+        return metricsArray;
+      });
+  }
+
+  public Future<JsonArray> getMemoryMetricsLastMinutes(SqlClient sqlClient, String discoveryName, int n)
+  {
+
+    String query = "SELECT * FROM Memory_Metric ORDER BY created_at DESC LIMIT ?";
+    return sqlClient.preparedQuery(query)
+      .execute(Tuple.of(n))
+      .map(rows -> {
+        JsonArray metricsArray = new JsonArray();
+        rows.forEach(row -> {
+          JsonObject metric = new JsonObject()
+
+            .put("created_at", row.getLocalDateTime("created_at").toString())
+
+            .put("free", row.getLong("free"))
+
+            .put("used", row.getLong("used"))
+
+            .put("swap", row.getLong("swap"))
+
+            .put("disc_used", row.getLong("disc_used"))
+            .put("cache", row.getLong("cache"));
+
+          metricsArray.add(metric);
+
+        });
+        return metricsArray;
+      });
   }
 }
