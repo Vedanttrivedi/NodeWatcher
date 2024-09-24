@@ -3,6 +3,7 @@ package com.example.nodewatcher.service;
 import com.example.nodewatcher.utils.Address;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Promise;
+import io.vertx.core.Vertx;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.sqlclient.SqlClient;
@@ -11,10 +12,13 @@ import org.zeromq.ZContext;
 import org.zeromq.ZMQ;
 
 import java.util.Base64;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class PluginDataSender extends AbstractVerticle
+public class PluginDataSender implements Runnable
 {
+
+  private AtomicBoolean startPolling;
 
   private final SqlClient sqlClient;
 
@@ -24,10 +28,12 @@ public class PluginDataSender extends AbstractVerticle
 
   private final ZContext context;
 
-  public PluginDataSender(SqlClient sqlClient)
-  {
+  private Vertx vertx;
 
-    context = new ZContext();
+  public PluginDataSender(SqlClient sqlClient, ZContext context, Vertx vertx)
+  {
+    this.vertx = vertx;
+    this.context = context;
 
     this.sqlClient = sqlClient;
 
@@ -37,10 +43,12 @@ public class PluginDataSender extends AbstractVerticle
 
     this.responseData = new JsonArray();
 
+    startPolling = new AtomicBoolean();
+
+    startPolling.set(false);
   }
 
-  @Override
-  public void start(Promise<Void> startPromise) throws Exception
+  public void run()
   {
     var cpuPollingTime = 5000;
 
@@ -53,19 +61,6 @@ public class PluginDataSender extends AbstractVerticle
     {
       //also listen for new updated device updated request
 
-      vertx.eventBus().<JsonObject>localConsumer(Address.pluginDataSender,dataToSend->{
-
-        System.out.println("I received while running the device "+dataToSend);
-
-        Promise sendPromise = Promise.promise();
-
-        var updatedRequestResponse = new JsonArray();
-
-        updatedRequestResponse.add(dataToSend);
-
-        addFetchDetailsAndExecuteBlocking(sendPromise,updatedRequestResponse);
-
-      });
 
 
       //Operations to perform on sql discovery
@@ -82,9 +77,12 @@ public class PluginDataSender extends AbstractVerticle
 
             System.out.println("Total Rows are "+remainingRows.get());
 
-            result.result().forEach(row -> {
+            result.result().forEach(row ->
+            {
               var ip = row.getString(1);
+
               var pingBody = new JsonObject();
+
               pingBody.put("ip", ip);
 
               vertx.eventBus().request(Address.pingCheck, pingBody, reply ->
@@ -117,37 +115,14 @@ public class PluginDataSender extends AbstractVerticle
 
                   System.out.println("I have processede everything about to send data through zmq "+responseData);
 
-                  addFetchDetailsAndExecuteBlocking(startPromise,responseData);
+                  addFetchDetailsAndExecuteBlocking(responseData);
 
-                  vertx.setPeriodic(cpuPollingTime,cpuDataSenderHandler->
+                  if(startPolling.get())
                   {
-                    var dataToSend = new JsonArray();
-
-                    var metric = new JsonObject();
-
-                    metric.put("metric","memory");
-
-                    dataToSend.add(metric);
-
-                    socket.send(Base64.getEncoder().encode(dataToSend.encode().getBytes()));
+                    System.out.println("Data of devices of is sent to plugin");
 
 
-                  });
-
-                  vertx.setPeriodic(cpuPollingTime,memoryDataSenderHandler->{
-
-                    var dataToSend = new JsonArray();
-
-                    var metric = new JsonObject();
-
-                    metric.put("metric","cpu");
-
-                    dataToSend.add(metric);
-
-                    socket.send(Base64.getEncoder().encode(dataToSend.encode().getBytes()));
-
-
-                  });
+                  }
 
                 }
               });
@@ -155,7 +130,7 @@ public class PluginDataSender extends AbstractVerticle
           }
           else
           {
-            startPromise.fail("Failed to query database");
+            System.out.println("Failed To  Query Database");
           }
         });
     }
@@ -163,12 +138,10 @@ public class PluginDataSender extends AbstractVerticle
     {
       System.out.println("Error in main plugin exception " + exception.getLocalizedMessage());
 
-      startPromise.fail("Promise Failed " + exception.getLocalizedMessage());
-
     }
   }
 
-  private void addFetchDetailsAndExecuteBlocking(Promise<Void> startPromise,JsonArray responseData)
+  private void addFetchDetailsAndExecuteBlocking(JsonArray responseData)
   {
     var cpu_metrics = "percentage\tload_average\tprocess_count\tio_percent\tthreads";
 
@@ -202,6 +175,8 @@ public class PluginDataSender extends AbstractVerticle
 
         socket.send(base64Encoded);
 
+        startPolling.set(true);
+
         System.out.println("Data sent! First Time or New Devices ");
 
         promise.complete();
@@ -221,13 +196,13 @@ public class PluginDataSender extends AbstractVerticle
       {
         System.out.println("Complete Sending");
 
-        startPromise.complete();
+        //startPromise.complete();
       }
       else
       {
         System.out.println("Error while sending");
 
-        startPromise.fail("Failed ");
+        //startPromise.fail("Failed ");
 
       }
     });

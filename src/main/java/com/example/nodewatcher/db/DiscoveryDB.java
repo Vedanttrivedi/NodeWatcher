@@ -49,7 +49,7 @@ public class DiscoveryDB
   {
 
     return sqlClient.preparedQuery("SELECT c.username,c.password,d.ip,d.name " +
-      "FROM Discovery d JOIN Credential ON d.credentialID = c.id WHERE  d.name = ? ")
+      "FROM Discovery d JOIN Credentials c ON d.credentialID = c.id WHERE  d.name = ? ")
       .execute(Tuple.of(discoveryName));
 
   }
@@ -108,11 +108,18 @@ public class DiscoveryDB
       .mapEmpty();
   }
 
-  public Future<Void> provisionDiscovery(String name)
+  public Future<RowSet<Row>>provisionDiscovery(String name,boolean status)
   {
-    return sqlClient.preparedQuery("UPDATE Discovery SET is_provisioned = TRUE WHERE name = ?")
-      .execute(Tuple.of(name))
-      .mapEmpty();
+    if(status==false)
+    {
+      return sqlClient.preparedQuery("UPDATE Discovery SET is_provisioned = ? WHERE name = ? AND is_provisioned = ?")
+        .execute(Tuple.of(status,name,1));
+    }
+    else
+    {
+      return sqlClient.preparedQuery("UPDATE Discovery SET is_provisioned = ? WHERE name = ? AND is_provisioned = ?")
+        .execute(Tuple.of(status,name,0));
+    }
   }
 
   public Future<Void> sameIpAndDiscoveryNameExists(String ip, String name, Promise<String> discoveryIpNamePromise)

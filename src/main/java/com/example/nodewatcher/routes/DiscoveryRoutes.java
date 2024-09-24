@@ -3,6 +3,7 @@ package com.example.nodewatcher.routes;
 import com.example.nodewatcher.db.DiscoveryDB;
 import com.example.nodewatcher.models.Discovery;
 import com.example.nodewatcher.utils.Address;
+import io.netty.channel.SimpleUserEventChannelHandler;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Promise;
 import io.vertx.core.json.JsonArray;
@@ -34,31 +35,26 @@ public class DiscoveryRoutes extends AbstractVerticle
   public void attach()
   {
 
-    // Post route to create discovery
     router.post("/discovery/create")
       .handler(TimeoutHandler.create(5000))
       .handler(BodyHandler.create())
       .handler(this::createDiscovery);
 
-    // Get details of a particular discovery
     router.get("/discovery/get/:name").handler(this::getDiscovery);
 
-    // Get all discovery records
     router.get("/discovery/all").handler(this::getAllDiscovery);
 
-    // Update a discovery record
     router.put("/discovery/update/:name").handler(this::updateDiscovery);
 
-    // Delete a discovery record
     router.delete("/discovery/delete/:name").handler(this::deleteDiscovery);
 
-    // Provision discovery (polling logic)
-    router.patch("/discovery/provision/:name").handler(this::provisionDiscovery);
+    router.patch("/discovery/provision/:name").
+      handler(BodyHandler.create()).
+      handler(this::provisionDiscovery);
 
 
   }
 
-  // Helper method to find the credential ID by credential name
   void findCredentialId(String credentialName, Promise<Integer> promise)
   {
     discoveryDB.findCredentialId(credentialName)
@@ -66,7 +62,6 @@ public class DiscoveryRoutes extends AbstractVerticle
       .onFailure(promise::fail);
   }
 
-  // Handler to create a new discovery record
   void createDiscovery(RoutingContext context)
   {
     var ip = context.request().getFormAttribute("ip");
@@ -111,7 +106,6 @@ public class DiscoveryRoutes extends AbstractVerticle
     ).onFailure(err -> context.response().setStatusCode(404).end(err.getMessage()));
   }
 
-  // Handler to get details of a specific discovery by name
   void getDiscovery(RoutingContext context)
   {
 
@@ -170,50 +164,73 @@ public class DiscoveryRoutes extends AbstractVerticle
       .onFailure(err -> context.response().end("Discovery name not found!"));
   }
 
-  // Handler to delete a discovery record
   void deleteDiscovery(RoutingContext context)
   {
     var name = context.pathParam("name");
+
     discoveryDB.deleteDiscovery(name)
       .onSuccess(success -> context.response().setStatusCode(200).end("Discovery deleted successfully."))
+
       .onFailure(err -> context.response().setStatusCode(500).end("Failed to delete discovery: " + err.getMessage()));
+
   }
 
-  // Handler to provision discovery
-  void provisionDiscovery(RoutingContext context) {
+  void provisionDiscovery(RoutingContext context)
+  {
     var name = context.pathParam("name").trim();
 
-    //once the provision request comes , check if the discovery with that name exists
-    //if it does then send it to plugin
+    System.out.println("Status : "+context.request().getFormAttribute("status"));
 
-    discoveryDB.provisionDiscovery(name)
+    var status = Integer.valueOf(context.request().getFormAttribute("status"));
+
+    var doProvision = status == 1;
+
+    //check if the provision status, if it is then add it and else remove it.
+
+    discoveryDB.provisionDiscovery(name,doProvision)
+
       .onSuccess(success ->
       {
-        context.response().end("Discovery Provisioned");
 
-        var discoveryAndCredentialBody = new JsonObject();
+        if(success.rowCount()!=0)
+          {
+            context.response().end("Discovery Provision Status Updated ");
 
-        discoveryDB.getDiscoveryAndCredentialByDiscoveryName(name)
-          .onSuccess(rowResult->{
+            var discoveryAndCredentialBody = new JsonObject();
 
-              discoveryAndCredentialBody.put("username",rowResult.iterator().next().getString(0));
+            discoveryDB.getDiscoveryAndCredentialByDiscoveryName(name)
 
-              discoveryAndCredentialBody.put("password",rowResult.iterator().next().getString(1));
+              .onSuccess(
 
-              discoveryAndCredentialBody.put("ip",rowResult.iterator().next().getString(2));
+                rowResult->{
 
-              discoveryAndCredentialBody.put("name",rowResult.iterator().next().getString(3));
+                  discoveryAndCredentialBody.put("username",rowResult.iterator().next().getString(0));
 
-            System.out.println("About to send "+discoveryAndCredentialBody);
+                  discoveryAndCredentialBody.put("password",rowResult.iterator().next().getString(1));
 
-            vertx.eventBus().send(Address.pluginDataSender,discoveryAndCredentialBody);
+                  discoveryAndCredentialBody.put("ip",rowResult.iterator().next().getString(2));
 
-            })
-          .onFailure(failureHandler->{
+                  discoveryAndCredentialBody.put("name",rowResult.iterator().next().getString(3));
 
-            System.out.println("Error While Fetching discovery with other options ");
+                  discoveryAndCredentialBody.put("doPolling",doProvision);
 
-            });
+                  System.out.println("About to send "+discoveryAndCredentialBody);
+
+                  vertx.eventBus().send(Address.pluginDataSender,discoveryAndCredentialBody);
+
+                  System.out.println("Row Updation Result "+rowResult.rowCount()+"\t"+rowResult.size()+"\t Do Provision Result "+doProvision);
+
+                })
+
+              .onFailure(failureHandler->{
+
+                System.out.println("Error While Fetching discovery with other options ");
+                context.response().end(failureHandler.getCause().toString());
+              });
+
+          }
+          else
+            context.response().end("Discovery does not exists");
 
       })
       .onFailure(err -> context.response().end("Not in the provision state " + err.getMessage()));

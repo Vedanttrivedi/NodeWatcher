@@ -16,10 +16,10 @@ public class PluginDataReceiver implements Runnable
 
   private Vertx vertx;
 
-  public PluginDataReceiver(Vertx vertx)
+  public PluginDataReceiver(Vertx vertx,ZContext context)
   {
 
-    this.context = new ZContext();
+    this.context = context;
 
     this.pullSocket = context.createSocket(SocketType.PULL);
 
