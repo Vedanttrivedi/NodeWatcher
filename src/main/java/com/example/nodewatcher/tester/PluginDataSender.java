@@ -38,7 +38,7 @@ public class PluginDataSender extends AbstractVerticle
 
     this.socket = context.createSocket(SocketType.PUSH);
 
-    this.socket.bind("tcp://localhost:4555");
+    this.socket.bind(Address.pushSocket);
 
     this.responseData = new JsonArray();
 
@@ -79,6 +79,7 @@ public class PluginDataSender extends AbstractVerticle
     sqlClient.query("SELECT d.name, d.ip, c.username, c.password, c.protocol " +
         "FROM Discovery d JOIN Credentials c ON d.credentialID = c.id WHERE d.is_provisioned = true")
       .execute()
+
       .onComplete(result -> {
 
         if (result.succeeded())
@@ -183,8 +184,9 @@ public class PluginDataSender extends AbstractVerticle
 
         System.out.println("Data sent successfully");
 
-        startCpuPolling(3000,5000);
+        startCpuPolling();
 
+        promise.complete();
       }
       catch (Exception e)
       {
@@ -205,14 +207,14 @@ public class PluginDataSender extends AbstractVerticle
 
   }
 
-  private void startCpuPolling(long cpuTime,long memoryTime)
+  private void startCpuPolling()
   {
-    vertx.setPeriodic(20000,handler->{
+    vertx.setPeriodic(Address.MEMORYINTERVAL,handler->{
 
       if(startPolling.get())
       {
         //We can send the data as initial discovery data has been sent!
-        System.out.println("Trying cpu polling "+startPolling.get());
+        System.out.println("Trying memory polling "+startPolling.get());
 
         var data = new JsonObject();
 
@@ -230,9 +232,9 @@ public class PluginDataSender extends AbstractVerticle
 
     });
 
-    vertx.setPeriodic(25000,handler->{
+    vertx.setPeriodic(Address.CPUNTERVAL,handler->{
 
-      System.out.println("Trying memory polling "+startPolling.get());
+      System.out.println("Trying cpu polling "+startPolling.get());
 
       if(startPolling.get())
       {
@@ -244,11 +246,8 @@ public class PluginDataSender extends AbstractVerticle
 
         jsonArray.add(data);
 
-        vertx.executeBlocking(promise -> {
+        socket.send(Base64.getEncoder().encode(jsonArray.encode().getBytes()),ZMQ.DONTWAIT);
 
-          socket.send(Base64.getEncoder().encode(jsonArray.encode().getBytes()),ZMQ.DONTWAIT);
-
-        });
         System.out.println("Data has been sent!");
       }
     });

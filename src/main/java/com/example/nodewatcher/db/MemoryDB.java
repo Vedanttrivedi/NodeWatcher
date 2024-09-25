@@ -14,7 +14,7 @@ public class MemoryDB
   public static void saveMemory(SqlClient sqlClient, Memory_Metric memoryMetric, Timestamp timestamp)
   {
 
-    var discoveryIp = memoryMetric.ip();
+    var discoveryIp = memoryMetric.getIp();
 
     sqlClient.preparedQuery("SELECT id FROM Discovery WHERE ip = ?")
 
@@ -33,8 +33,8 @@ public class MemoryDB
             sqlClient.preparedQuery("INSERT INTO Memory_Metric(discoveryId,free,swap,used," +
               "cache,disc_used,created_at) VALUES (?,?,?,?,?,?,?)")
 
-              .execute(Tuple.of(discovery_id,memoryMetric.free(),memoryMetric.swap(),
-                memoryMetric.used(),memoryMetric.cached(),memoryMetric.disk_space(),timestamp))
+              .execute(Tuple.of(discovery_id,memoryMetric.getFree(),memoryMetric.getSwap(),
+                memoryMetric.getCached(),memoryMetric.getCached(),memoryMetric.getDisk_space(),timestamp))
 
               .onComplete(result ->{
 

@@ -1,7 +1,6 @@
 package com.example.nodewatcher.db;
 
 import com.example.nodewatcher.models.Cpu_Metric;
-import com.example.nodewatcher.models.Memory_Metric;
 import io.vertx.sqlclient.SqlClient;
 import io.vertx.sqlclient.Tuple;
 
@@ -14,9 +13,9 @@ public class CpuDB
   public static void save(SqlClient sqlClient, Cpu_Metric cpuMetric, Timestamp timestamp)
   {
 
-    System.out.println("In the save cpu "+cpuMetric.ip()+"sql client :"+sqlClient);
+    System.out.println("In the save cpu "+cpuMetric.getIp()+"sql client :"+sqlClient);
 
-    var discoveryIp = cpuMetric.ip();
+    var discoveryIp = cpuMetric.getIp();
 
     sqlClient.preparedQuery("SELECT id FROM Discovery WHERE ip = ?")
 
@@ -35,8 +34,8 @@ public class CpuDB
             sqlClient.preparedQuery("INSERT INTO CPU_Metric(discoveryId,percentage,load_average,process_counts," +
                 "io_percent,threads,created_at) VALUES (?,?,?,?,?,?,?)")
 
-              .execute(Tuple.of(discovery_id,cpuMetric.percentage(),cpuMetric.load_average(),
-                cpuMetric.process_counts(),cpuMetric.io_percent(),cpuMetric.threads(),timestamp))
+              .execute(Tuple.of(discovery_id,cpuMetric.getPercentage(),cpuMetric.getLoad_average(),
+                cpuMetric.getProcess_counts(),cpuMetric.getIo_percent(),cpuMetric.getThreads(),timestamp))
 
               .onComplete(result ->{
 

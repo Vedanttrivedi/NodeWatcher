@@ -181,18 +181,22 @@ public class DiscoveryRoutes extends AbstractVerticle
 
     System.out.println("Status : "+context.request().getFormAttribute("status"));
 
-    var status = Integer.valueOf(context.request().getFormAttribute("status"));
+    var status = context.request().getFormAttribute("status");
 
-    var doProvision = status == 1;
+    if(status==null)
+    {
+      context.response().end("Provision Status Missing. Provide status = 1 for provision and 0 to remove provision");
+      return;
+    }
+    try
+    {
+      var doProvision = Integer.valueOf(status) ==1;
+      discoveryDB.provisionDiscovery(name,doProvision)
 
-    //check if the provision status, if it is then add it and else remove it.
+        .onSuccess(success ->
+        {
 
-    discoveryDB.provisionDiscovery(name,doProvision)
-
-      .onSuccess(success ->
-      {
-
-        if(success.rowCount()!=0)
+          if(success.rowCount()!=0)
           {
             context.response().end("Discovery Provision Status Updated ");
 
@@ -232,8 +236,16 @@ public class DiscoveryRoutes extends AbstractVerticle
           else
             context.response().end("Discovery does not exists");
 
-      })
-      .onFailure(err -> context.response().end("Not in the provision state " + err.getMessage()));
+        })
+        .onFailure(err -> context.response().end("Not in the provision state " + err.getMessage()));
+
+    }
+
+    catch (Exception exception)
+    {
+      context.response().end("invalid value for status . Must be 0 or 1");
+      return;
+    }
 
   }
 }

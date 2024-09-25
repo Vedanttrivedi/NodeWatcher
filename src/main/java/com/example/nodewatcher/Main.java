@@ -13,11 +13,13 @@ import java.util.logging.Logger;
 
 public class Main
 {
+
   private static final Logger LOGGER = Logger.getLogger(Main.class.getName());
 
   public static void main(String[] args)
   {
     Vertx vertx = setupVertx();
+
     MySQLPool databaseClient = DatabaseClient.getClient(vertx);
 
     try
@@ -31,12 +33,12 @@ public class Main
           vertx.deployVerticle(new MainVertical(databaseClient)),
 
           vertx.deployVerticle(new PluginDataSender(databaseClient,context),
-            new DeploymentOptions().setThreadingModel(ThreadingModel.WORKER)),
-
-          vertx.deployVerticle(new PluginDataSaver(databaseClient))
+            new DeploymentOptions().setThreadingModel(ThreadingModel.WORKER))
 
         ).
         onComplete(verticalDeploymentResult->{
+
+          System.out.println("Vertical Deployment Result "+verticalDeploymentResult.result());
 
           if(verticalDeploymentResult.succeeded())
           {
@@ -44,6 +46,8 @@ public class Main
             Thread thread = new Thread(new PluginDataReceiver(vertx,context));
 
             thread.start();
+
+            vertx.deployVerticle(new PluginDataSaver(databaseClient));
 
             LOGGER.log(Level.FINER,"All the verticals are deployed");
           }

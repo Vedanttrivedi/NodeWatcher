@@ -11,6 +11,7 @@ import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.sqlclient.SqlClient;
 import org.zeromq.ZMQ;
+
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.logging.*;
@@ -41,8 +42,6 @@ public class PluginDataSaver extends AbstractVerticle
     LogManager lgmngr = LogManager.getLogManager();
 
     Logger log = lgmngr.getLogger(Logger.GLOBAL_LOGGER_NAME);
-
-    System.out.println("Plugin receiver loaded");
 
     vertx.eventBus().<String>localConsumer(Address.dumpDB,handler->{
         try
@@ -97,6 +96,7 @@ public class PluginDataSaver extends AbstractVerticle
             else
               log.log(Level.SEVERE,"Device is Down :"+jsonObeject.getString("ip"));
 
+
           });
         }
         catch (Exception exception)
@@ -107,5 +107,8 @@ public class PluginDataSaver extends AbstractVerticle
         }
 
     });
+
+    startPromise.complete();
+
   }
 }

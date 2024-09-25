@@ -1,8 +1,5 @@
 package com.example.nodewatcher.service;
 import com.example.nodewatcher.utils.Address;
-import com.sun.source.tree.TryTree;
-import io.vertx.core.AbstractVerticle;
-import io.vertx.core.Promise;
 import io.vertx.core.Vertx;
 import org.zeromq.SocketType;
 import org.zeromq.ZContext;
@@ -23,7 +20,7 @@ public class PluginDataReceiver implements Runnable
 
     this.pullSocket = context.createSocket(SocketType.PULL);
 
-    pullSocket.connect("tcp://localhost:4556");
+    pullSocket.connect(Address.pullSocket);
 
     this.vertx = vertx;
   }
