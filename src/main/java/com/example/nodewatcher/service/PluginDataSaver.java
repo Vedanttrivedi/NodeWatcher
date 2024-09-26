@@ -72,14 +72,14 @@ public class PluginDataSaver extends AbstractVerticle
 
                   MetricDB.saveMemory(sqlClient,memory_metric,timestamp);
 
-                  logger.info("Device is Up "+device);
+                  logger.info("Metric Collected "+device);
 
                 }
                 else
                 {
                   System.out.println("Could not collect information at "+LocalDateTime.now().toString());
 
-                  logger.info("Device is down "+device);
+                  logger.info("Device Credential Or Network Issue "+device);
 
                 }
 
@@ -101,13 +101,13 @@ public class PluginDataSaver extends AbstractVerticle
                   MetricDB.saveCpu(sqlClient,cpuMetric,timestamp);
 
 
-                  logger.info("Device is up "+device);
+                  logger.info("Metric Collected"+device);
                 }
                 else
                 {
                   System.out.println("Could not collect information at " + LocalDateTime.now().toString());
 
-                  logger.error("Device is down "+device);
+                  logger.error("Device Credential Or Network Issue "+device);
 
                 }
               }
