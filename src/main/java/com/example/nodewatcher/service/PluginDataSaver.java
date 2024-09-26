@@ -1,7 +1,6 @@
 package com.example.nodewatcher.service;
 
-import com.example.nodewatcher.db.CpuDB;
-import com.example.nodewatcher.db.MemoryDB;
+import com.example.nodewatcher.db.MetricDB;
 import com.example.nodewatcher.models.Cpu_Metric;
 import com.example.nodewatcher.models.Memory_Metric;
 import com.example.nodewatcher.utils.Address;
@@ -10,10 +9,11 @@ import io.vertx.core.Promise;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.sqlclient.SqlClient;
+import org.slf4j.LoggerFactory;
 import org.zeromq.ZMQ;
 
+import java.sql.SQLOutput;
 import java.util.logging.Level;
-import java.util.logging.Logger;
 import java.util.logging.*;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
@@ -24,29 +24,27 @@ import java.util.Base64;
 public class PluginDataSaver extends AbstractVerticle
 {
 
-  private final static Logger LOGGER =
-    Logger.getLogger(Logger.GLOBAL_LOGGER_NAME);
-
+  private static final org.slf4j.Logger logger = LoggerFactory.getLogger(PluginDataSaver.class);
 
   SqlClient sqlClient;
 
   public PluginDataSaver(SqlClient sqlClient)
   {
     this.sqlClient =sqlClient;
-
   }
+
   @Override
   public void start(Promise<Void> startPromise) throws Exception
   {
 
-    LogManager lgmngr = LogManager.getLogManager();
+    var logManager = LogManager.getLogManager();
 
-    Logger log = lgmngr.getLogger(Logger.GLOBAL_LOGGER_NAME);
+    var log = logManager.getLogger(Logger.GLOBAL_LOGGER_NAME);
 
-    vertx.eventBus().<String>localConsumer(Address.dumpDB,handler->{
-        try
+    vertx.eventBus().<String>localConsumer(Address.DUMPDB,handler->{
+
+      try
         {
-
           var decodedBase64Data = Base64.getDecoder().decode(handler.body());
 
           var deviceDetails = new JsonArray(new String(decodedBase64Data, ZMQ.CHARSET));
@@ -57,53 +55,68 @@ public class PluginDataSaver extends AbstractVerticle
 
           var metric = deviceDetails.remove(lenOfMessage-2);
 
-          log.log(Level.INFO, "Arrived At "+deviceDetails+"Size "+lenOfMessage+" On "+time+" Metric : "+metric);
-
           deviceDetails.forEach(device->{
 
-            var jsonObeject  = (JsonObject)device;
-
-            if(jsonObeject.getBoolean("status"))
-            {
+              var devicesInfo  = (JsonObject) device;
 
               if(metric.equals("memory"))
               {
-                var memory_metric = Memory_Metric.fromJson((JsonObject) device);
+                //If the Device is Down Save the timings with default value
+                if(devicesInfo.getBoolean("status"))
+                {
+                  var memory_metric = Memory_Metric.fromJson((JsonObject) device);
 
-                var localDateTime = LocalDateTime.parse(time, DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+                  var localDateTime = LocalDateTime.parse(time, DateTimeFormatter.ISO_LOCAL_DATE_TIME);
 
-                var timestamp = Timestamp.valueOf(localDateTime);
+                  var timestamp = Timestamp.valueOf(localDateTime);
 
-                MemoryDB.saveMemory(sqlClient,memory_metric,timestamp);
+                  MetricDB.saveMemory(sqlClient,memory_metric,timestamp);
+
+                  logger.info("Device is Up "+device);
+
+                }
+                else
+                {
+                  System.out.println("Could not collect information at "+LocalDateTime.now().toString());
+
+                  logger.info("Device is down "+device);
+
+                }
 
               }
               else if(metric.equals("cpu"))
               {
                 log.log(Level.INFO,"Arrived in Cpu Saver!!!");
-                var cpu_metric = Cpu_Metric.fromJson((JsonObject) device);
 
-                var localDateTime = LocalDateTime.parse(time, DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+                if(devicesInfo.getBoolean("status"))
+                {
+                  var cpuMetric = Cpu_Metric.fromJson((JsonObject) device);
 
-                var timestamp = Timestamp.valueOf(localDateTime);
+                  var localDateTime = LocalDateTime.parse(time, DateTimeFormatter.ISO_LOCAL_DATE_TIME);
 
-                log.log(Level.FINE,"Cpu Information :"+cpu_metric);
+                  var timestamp = Timestamp.valueOf(localDateTime);
 
-                CpuDB.save(sqlClient,cpu_metric,timestamp);
+                  log.log(Level.FINE,"Cpu Information :"+cpuMetric);
 
+                  MetricDB.saveCpu(sqlClient,cpuMetric,timestamp);
+
+
+                  logger.info("Device is up "+device);
+                }
+                else
+                {
+                  System.out.println("Could not collect information at " + LocalDateTime.now().toString());
+
+                  logger.error("Device is down "+device);
+
+                }
               }
-            }
-
-            else
-              log.log(Level.SEVERE,"Device is Down :"+jsonObeject.getString("ip"));
-
 
           });
         }
         catch (Exception exception)
         {
-
-          startPromise.fail("Exception "+exception.getMessage());
-
+          logger.error("error",exception);
         }
 
     });

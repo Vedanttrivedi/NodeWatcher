@@ -3,10 +3,12 @@ package com.example.nodewatcher.service;
 import com.example.nodewatcher.utils.Address;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Promise;
-import io.vertx.core.Vertx;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
+import io.vertx.sqlclient.Row;
+import io.vertx.sqlclient.RowSet;
 import io.vertx.sqlclient.SqlClient;
+import org.slf4j.LoggerFactory;
 import org.zeromq.SocketType;
 import org.zeromq.ZContext;
 import org.zeromq.ZMQ;
@@ -15,10 +17,11 @@ import java.util.Base64;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class PluginDataSender implements Runnable
+public class PluginDataSender extends AbstractVerticle
 {
+  private static final org.slf4j.Logger logger = LoggerFactory.getLogger(PluginDataSaver.class);
 
-  private AtomicBoolean startPolling;
+  private final AtomicBoolean startPolling;
 
   private final SqlClient sqlClient;
 
@@ -28,183 +31,237 @@ public class PluginDataSender implements Runnable
 
   private final ZContext context;
 
-  private Vertx vertx;
-
-  public PluginDataSender(SqlClient sqlClient, ZContext context, Vertx vertx)
+  public PluginDataSender(SqlClient sqlClient, ZContext context)
   {
-    this.vertx = vertx;
+
     this.context = context;
 
     this.sqlClient = sqlClient;
 
     this.socket = context.createSocket(SocketType.PUSH);
 
-    this.socket.bind("tcp://localhost:4555");
+    this.socket.bind(Address.PUSHSOCKET);
 
     this.responseData = new JsonArray();
 
-    startPolling = new AtomicBoolean();
-
-    startPolling.set(false);
+    this.startPolling = new AtomicBoolean(false);
   }
 
-  public void run()
+  @Override
+  public void start(Promise<Void> startPromise) throws Exception
   {
-    var cpuPollingTime = 5000;
-
-    var memoryPollingTime = 3000;
-
-
     System.out.println("Plugin Sender Loaded");
 
-    try
-    {
-      //also listen for new updated device updated request
+    vertx.eventBus().<JsonObject>localConsumer(Address.PLUGINDATASENDER, pluginSenderHandler->{
 
+      handleNewDeviceData(pluginSenderHandler.body());
 
+    });
 
-      //Operations to perform on sql discovery
-
-      sqlClient.query("SELECT d.name,d.ip,c.username,c.password,c.protocol " +
-          "FROM Discovery d JOIN Credentials c ON d.credentialID = c.id WHERE d.is_provisioned = true")
-        .execute()
-
-        .onComplete(result -> {
-
-          if (result.succeeded())
-          {
-            AtomicInteger remainingRows = new AtomicInteger(result.result().size());
-
-            System.out.println("Total Rows are "+remainingRows.get());
-
-            result.result().forEach(row ->
-            {
-              var ip = row.getString(1);
-
-              var pingBody = new JsonObject();
-
-              pingBody.put("ip", ip);
-
-              vertx.eventBus().request(Address.pingCheck, pingBody, reply ->
-              {
-                if (reply.succeeded())
-                {
-                  var discoveryAndCredential = new JsonObject();
-
-                  discoveryAndCredential.put("discoveryName", row.getString(0));
-
-                  discoveryAndCredential.put("ip", row.getString(1));
-
-                  discoveryAndCredential.put("username", row.getString(2));
-
-                  discoveryAndCredential.put("password", row.getString(3));
-
-                  System.out.println("Adding this discovery " + discoveryAndCredential);
-
-                  responseData.add(discoveryAndCredential);
-                }
-                else
-                {
-
-                  System.out.println("Device is Down " + ip);
-
-                }
-
-                if (remainingRows.decrementAndGet() == 0)
-                {
-
-                  System.out.println("I have processede everything about to send data through zmq "+responseData);
-
-                  addFetchDetailsAndExecuteBlocking(responseData);
-
-                  if(startPolling.get())
-                  {
-                    System.out.println("Data of devices of is sent to plugin");
-
-
-                  }
-
-                }
-              });
-            });
-          }
-          else
-          {
-            System.out.println("Failed To  Query Database");
-          }
-        });
-    }
-    catch (Exception exception)
-    {
-      System.out.println("Error in main plugin exception " + exception.getLocalizedMessage());
-
-    }
+    fetchAndProcessDiscoveries(startPromise);
   }
 
-  private void addFetchDetailsAndExecuteBlocking(JsonArray responseData)
+
+  private void handleNewDeviceData(JsonObject device)
   {
-    var cpu_metrics = "percentage\tload_average\tprocess_count\tio_percent\tthreads";
 
-    var memory_metrics = "free\tused\tswap\tdisc_used\tcache";
+    var updatedRequestResponse = new JsonArray().add(device);
 
-    var device_metrics = "name\tos_name\tarchitecture\tuptime\tkernel";
+    sendDataToPlugin(updatedRequestResponse, Promise.promise());
 
-    var fetchDetails = new JsonObject();
+  }
 
-    fetchDetails.put("metrics", "all");
+  private void fetchAndProcessDiscoveries(Promise<Void> startPromise)
+  {
 
-    fetchDetails.put("memory", memory_metrics);
+    sqlClient.query("SELECT d.name, d.ip, c.username, c.password, c.protocol " +
+        "FROM Discovery d JOIN Credentials c ON d.credentialID = c.id WHERE d.is_provisioned = true")
+      .execute()
 
-    fetchDetails.put("cpu", cpu_metrics);
+      .onComplete(result -> {
 
-    fetchDetails.put("device", device_metrics);
+        if (result.succeeded())
+        {
+          processDiscoveryResults(result.result(), startPromise);
+        }
+        else
+        {
+          startPromise.fail("Failed to query database: " + result.cause().getMessage());
+        }
 
-    fetchDetails.put("iteration", 1);
+      });
+  }
 
-    responseData.add(fetchDetails);
+  private void processDiscoveryResults(RowSet<Row> rows, Promise<Void> startPromise)
+  {
+    AtomicInteger remainingRows = new AtomicInteger(rows.size());
 
-    vertx.executeBlocking(promise -> {
-      try
+    AtomicBoolean atLeastOnePingable = new AtomicBoolean(false);
+
+    rows.forEach(row ->
+    {
+      String ip = row.getString(1);
+
+      pingDevice(ip, row, remainingRows, atLeastOnePingable, startPromise);
+
+    });
+  }
+
+  private void pingDevice(String ip,Row row, AtomicInteger remainingRows, AtomicBoolean atLeastOnePingable, Promise<Void> startPromise)
+  {
+    JsonObject pingBody = new JsonObject().put("ip", ip);
+
+    vertx.eventBus().request(Address.PINGCHECK, pingBody, reply -> {
+
+      if (reply.succeeded())
       {
+        addDeviceToResponseData(row);
 
-        System.out.println("Original Data " + responseData.encodePrettily());
-
-        var base64Encoded = Base64.getEncoder().encode(responseData.encode().getBytes());
-
-        System.out.println("Encoded Data to sent " + base64Encoded);
-
-        socket.send(base64Encoded);
-
-        startPolling.set(true);
-
-        System.out.println("Data sent! First Time or New Devices ");
-
-        promise.complete();
-
-      }
-      catch (Exception e)
-      {
-        promise.fail("Error " + e.getMessage());
-
-        System.out.println("Error while sending data " + e.getMessage());
-
-      }
-    },
-      future ->
-      {
-      if (future.succeeded())
-      {
-        System.out.println("Complete Sending");
-
-        //startPromise.complete();
+        atLeastOnePingable.set(true);
       }
       else
       {
-        System.out.println("Error while sending");
 
-        //startPromise.fail("Failed ");
+        System.out.println("Device is Down: " + ip);
 
       }
+      checkIfProcessingComplete(remainingRows, atLeastOnePingable, startPromise);
     });
+
+  }
+
+  private void addDeviceToResponseData(io.vertx.sqlclient.Row row)
+  {
+    JsonObject discoveryAndCredential = new JsonObject()
+      .put("discoveryName", row.getString(0))
+      .put("ip", row.getString(1))
+      .put("username", row.getString(2))
+      .put("password", row.getString(3))
+      .put("doPolling",true);
+
+    System.out.println("Adding this discovery: " + discoveryAndCredential);
+
+    responseData.add(discoveryAndCredential);
+
+  }
+
+  private void checkIfProcessingComplete(AtomicInteger remainingRows, AtomicBoolean atLeastOnePingable, Promise<Void> startPromise)
+  {
+    if (remainingRows.decrementAndGet() == 0)
+    {
+      if (atLeastOnePingable.get())
+      {
+        System.out.println("Processing complete, sending data through ZMQ: " + responseData);
+
+        sendDataToPlugin(responseData, startPromise);
+      }
+      else
+      {
+
+        startPromise.complete(); // No pingable devices found, but not considering it as a failure
+
+      }
+    }
+  }
+
+  private void sendDataToPlugin(JsonArray data, Promise<Void> promise)
+  {
+    JsonObject fetchDetails = createFetchDetailsObject();
+
+    data.add(fetchDetails);
+
+    logger.info("New Device Arrived "+ data);
+
+    try
+    {
+
+      var base64Encoded = Base64.getEncoder().encode(data.encode().getBytes());
+
+      socket.send(base64Encoded,ZMQ.DONTWAIT);
+
+      startPolling.set(true);
+
+      System.out.println("Data sent successfully");
+
+      startCpuPolling();
+
+      promise.complete();
+    }
+
+    catch (Exception e)
+    {
+      System.out.println("Error happen while sending data");
+
+    }
+
+
+  }
+
+  private JsonObject createFetchDetailsObject()
+  {
+    return new JsonObject()
+      .put("metrics", "all")
+      .put("memory", "free\tused\tswap\tdisc_used\tcache")
+      .put("cpu", "percentage\tload_average\tprocess_count\tio_percent\tthreads")
+      .put("device", "name\tos_name\tarchitecture\tuptime\tkernel")
+      .put("iteration", 1);
+
+  }
+
+  private void startCpuPolling()
+  {
+    final long[] lastMemoryPoll = {System.currentTimeMillis()};
+    final long[] lastCpuPoll = {System.currentTimeMillis()};
+
+    vertx.setPeriodic(100, handler ->
+    {
+      long currentTime = System.currentTimeMillis();
+
+      // Check if it's time for memory polling
+      if (currentTime - lastMemoryPoll[0] >= Address.MEMORYINTERVAL)
+      {
+
+        if (startPolling.get())
+        {
+          System.out.println("Trying memory polling " + startPolling.get());
+
+          var data = new JsonObject();
+
+          data.put("metric", "memory");
+
+          var jsonArray = new JsonArray();
+
+          jsonArray.add(data);
+
+          socket.send(Base64.getEncoder().encode(jsonArray.encode().getBytes()));
+
+          System.out.println("Memory data has been sent");
+        }
+        lastMemoryPoll[0] = currentTime; // Update last memory poll time
+      }
+
+      // Check if it's time for CPU polling
+      if (currentTime - lastCpuPoll[0] >= Address.CPUNTERVAL)
+      {
+        if (startPolling.get())
+        {
+          System.out.println("Trying CPU polling " + startPolling.get());
+
+          var data = new JsonObject();
+
+          data.put("metric", "cpu");
+
+          var jsonArray = new JsonArray();
+
+          jsonArray.add(data);
+
+          socket.send(Base64.getEncoder().encode(jsonArray.encode().getBytes()), ZMQ.DONTWAIT);
+
+          System.out.println("CPU data has been sent");
+        }
+        lastCpuPoll[0] = currentTime; // Update last CPU poll time
+      }
+    });
+
   }
 }

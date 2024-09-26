@@ -1,6 +1,5 @@
 package com.example.nodewatcher;
 
-import com.example.nodewatcher.service.MainVerticle;
 import io.vertx.core.Vertx;
 import io.vertx.junit5.VertxExtension;
 import io.vertx.junit5.VertxTestContext;

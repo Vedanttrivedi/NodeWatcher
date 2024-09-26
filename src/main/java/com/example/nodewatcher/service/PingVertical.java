@@ -18,7 +18,7 @@ public class PingVertical extends AbstractVerticle
   public void start()
   {
 
-    vertx.eventBus().<JsonObject>consumer(Address.pingCheck, this::handlePingRequest);
+    vertx.eventBus().<JsonObject>consumer(Address.PINGCHECK, this::handlePingRequest);
 
   }
 
@@ -26,9 +26,7 @@ public class PingVertical extends AbstractVerticle
   {
     var data = message.body();
 
-    System.out.println("I received request "+data.getString("ip"));
-
-    canPing(data.getString("ip"),22).
+    ping(data.getString("ip")).
 
       onComplete(result->{
 
@@ -48,7 +46,7 @@ public class PingVertical extends AbstractVerticle
 
   }
 
-  private Future<Boolean> canPing(String ip,int port)
+  private Future<Boolean> ping(String ip)
   {
     var promise = Promise.<Boolean>promise();
 
@@ -60,42 +58,42 @@ public class PingVertical extends AbstractVerticle
 
       handler->{
 
-      var processBuilder  = new ProcessBuilder("fping","-c","3",ip);
+        var processBuilder  = new ProcessBuilder("fping","-c","3",ip);
 
-      System.out.println("Execute blocking !");
+        System.out.println("Execute blocking !");
 
-      try
-      {
-        var process = processBuilder.start();
-
-        var reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-
-        String line;
-
-        var counts = 0;
-
-        while((line = reader.readLine())!=null)
+        try
         {
+          var process = processBuilder.start();
 
-          if(line.contains("0% loss"))
-            counts++;
+          var reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+
+          String line;
+
+          var counts = 0;
+
+          while((line = reader.readLine())!=null)
+          {
+
+            if(line.contains("0% loss"))
+              counts++;
+
+          }
+          if(counts==3)
+            promise.complete(true);
+
+          else
+            promise.fail("Device is Down!");
 
         }
-        if(counts==3)
-          promise.complete(true);
+        catch (IOException e)
+        {
 
-        else
-          promise.fail("Device is Down!");
+          promise.fail("Error in processbuilder!");
 
-      }
-      catch (IOException e)
-      {
+        }
 
-        promise.fail("Error in processbuilder!");
-
-      }
-
-    });
+      });
 
     return promise.future();
 

@@ -1,35 +1,42 @@
 package com.example.nodewatcher.service;
 import com.example.nodewatcher.utils.Address;
+import io.vertx.core.AbstractVerticle;
+import io.vertx.core.Promise;
 import io.vertx.core.Vertx;
 import org.zeromq.SocketType;
 import org.zeromq.ZContext;
 import org.zeromq.ZMQ;
 
-public class PluginDataReceiver implements Runnable
+public class PluginDataReceiver extends AbstractVerticle
 {
   private ZMQ.Socket pullSocket;
 
   private ZContext context;
 
-  private Vertx vertx;
 
-  public PluginDataReceiver(Vertx vertx,ZContext context)
+  public PluginDataReceiver(ZContext context)
   {
 
     this.context = context;
 
     this.pullSocket = context.createSocket(SocketType.PULL);
 
-    pullSocket.connect(Address.pullSocket);
+    pullSocket.connect(Address.PULLSOCKET);
 
-    this.vertx = vertx;
   }
 
+  @Override
+  public void start(Promise<Void> startPromise) throws Exception
+  {
+    startPromise.complete();
 
-  public void run()
+    starter();
+
+  }
+
+  public void starter()
   {
 
-    System.out.println("Plugin Data receiver loaded");
     try
     {
       while (true)
@@ -37,11 +44,8 @@ public class PluginDataReceiver implements Runnable
 
         var message = pullSocket.recvStr();
 
-        System.out.println("Received Message "+message);
-
         if (message != null)
-
-          vertx.eventBus().send(Address.dumpDB, message);
+          vertx.eventBus().send(Address.DUMPDB, message);
 
       }
     }
@@ -51,6 +55,5 @@ public class PluginDataReceiver implements Runnable
     }
 
   }
-
 
 }

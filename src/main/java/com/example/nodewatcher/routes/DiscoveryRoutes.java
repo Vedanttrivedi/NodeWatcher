@@ -1,29 +1,34 @@
 package com.example.nodewatcher.routes;
 
 import com.example.nodewatcher.db.DiscoveryDB;
-import com.example.nodewatcher.models.Discovery;
+import com.example.nodewatcher.service.PluginDataSaver;
 import com.example.nodewatcher.utils.Address;
-import io.netty.channel.SimpleUserEventChannelHandler;
 import io.vertx.core.AbstractVerticle;
+import io.vertx.core.DeploymentOptions;
+import io.vertx.core.Future;
 import io.vertx.core.Promise;
-import io.vertx.core.json.JsonArray;
+import io.vertx.core.eventbus.DeliveryOptions;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.BodyHandler;
 import io.vertx.ext.web.handler.TimeoutHandler;
-import org.zeromq.ZMQ;
+import io.vertx.sqlclient.SqlClient;
+import org.slf4j.LoggerFactory;
+
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class DiscoveryRoutes extends AbstractVerticle
 {
 
   private final Router router;
   private final DiscoveryDB discoveryDB;
+  private static final org.slf4j.Logger logger = LoggerFactory.getLogger(PluginDataSaver.class);
 
-  public DiscoveryRoutes(Router router, DiscoveryDB discoveryDB)
+  public DiscoveryRoutes(Router router, SqlClient databaseClient)
   {
     this.router = router;
-    this.discoveryDB = discoveryDB;
+    this.discoveryDB = new DiscoveryDB(databaseClient);
   }
 
   @Override
@@ -52,7 +57,6 @@ public class DiscoveryRoutes extends AbstractVerticle
       handler(BodyHandler.create()).
       handler(this::provisionDiscovery);
 
-
   }
 
   void findCredentialId(String credentialName, Promise<Integer> promise)
@@ -64,6 +68,7 @@ public class DiscoveryRoutes extends AbstractVerticle
 
   void createDiscovery(RoutingContext context)
   {
+
     var ip = context.request().getFormAttribute("ip");
 
     var name = context.request().getFormAttribute("name");
@@ -83,27 +88,67 @@ public class DiscoveryRoutes extends AbstractVerticle
     credentialIdPromise.future().compose(credentialId ->
       discoveryIpNamePromise.future().compose(duplicateRow ->
       {
-        System.out.println("Duplicate Row "+duplicateRow.trim());
         if (duplicateRow.equals("Remove"))
         {
           context.response().end(duplicateRow);
+
           return null;
         }
         else
         {
-          vertx.eventBus().request(Address.pingCheck, data, reply ->
+          vertx.eventBus().request(Address.PINGCHECK, data, reply ->
           {
             if (reply.succeeded())
+            {
               context.response().end("<h1>" + reply.result().body() + ", Saved in DB. You can provision it later.</h1>");
-             else
+
+              logger.error("Discovery in reach ",reply.cause());
+
+            }
+            else
+            {
               context.response().end("Device is Down");
 
+              logger.error("Discovery not in reach ",reply.cause());
+
+            }
           });
 
           return discoveryDB.createDiscovery(name, ip, credentialId);
         }
       })
     ).onFailure(err -> context.response().setStatusCode(404).end(err.getMessage()));
+  }
+
+  private Future<Void> pingAndSaveDiscovery(RoutingContext context, JsonObject data, String name, String ip, Integer credentialId)
+  {
+    Promise<Void> promise = Promise.promise();
+
+    vertx.eventBus().request(Address.PINGCHECK, data, new DeliveryOptions().setSendTimeout(5000), reply ->
+    {
+      if (reply.succeeded())
+      {
+        discoveryDB.createDiscovery(name, ip, credentialId)
+          .onSuccess(v -> {
+
+            context.response().end("<h1>" + reply.result().body() + ", Saved in DB. You can provision it later.</h1>");
+
+
+            promise.complete();
+          })
+          .onFailure(err -> {
+            context.response().end("Error saving to database: " + err.getMessage());
+            promise.fail(err);
+          });
+      }
+      else
+      {
+        context.response().end("Device is down! Cannot add. Try again!");
+        promise.complete();
+      }
+    });
+
+    return promise.future();
   }
 
   void getDiscovery(RoutingContext context)
@@ -120,7 +165,7 @@ public class DiscoveryRoutes extends AbstractVerticle
           return;
         }
         //Once user is getting all the discovery he should be able to get the result whether device is reachable or not
-        vertx.eventBus().request(Address.pingCheck,discovery.toJson("Down"),reply->{
+        vertx.eventBus().request(Address.PINGCHECK,discovery.toJson("Down"),reply->{
 
           if(reply.succeeded())
           {
@@ -220,7 +265,7 @@ public class DiscoveryRoutes extends AbstractVerticle
 
                   System.out.println("About to send "+discoveryAndCredentialBody);
 
-                  vertx.eventBus().send(Address.pluginDataSender,discoveryAndCredentialBody);
+                  vertx.eventBus().send(Address.PLUGINDATASENDER,discoveryAndCredentialBody);
 
                   System.out.println("Row Updation Result "+rowResult.rowCount()+"\t"+rowResult.size()+"\t Do Provision Result "+doProvision);
 
@@ -229,7 +274,9 @@ public class DiscoveryRoutes extends AbstractVerticle
               .onFailure(failureHandler->{
 
                 System.out.println("Error While Fetching discovery with other options ");
+
                 context.response().end(failureHandler.getCause().toString());
+
               });
 
           }
@@ -244,6 +291,8 @@ public class DiscoveryRoutes extends AbstractVerticle
     catch (Exception exception)
     {
       context.response().end("invalid value for status . Must be 0 or 1");
+
+      logger.error("Error "+exception.getMessage());
       return;
     }
 

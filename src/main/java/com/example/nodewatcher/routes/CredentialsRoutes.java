@@ -18,10 +18,13 @@ import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.util.Base64;
 
-public class CredentialsRoutes {
+public class CredentialsRoutes
+{
+
   static CredentialDB credentialDB = new CredentialDB();
 
-  public static void attach(Router router, SqlClient sqlClient) {
+  public static void attach(Router router, SqlClient sqlClient)
+  {
 
     router.post("/credential/create")
 
@@ -52,7 +55,8 @@ public class CredentialsRoutes {
   }
 
 
-  static void createCredential(RoutingContext context, SqlClient sqlClient) {
+  static void createCredential(RoutingContext context, SqlClient sqlClient)
+  {
 
     var name = context.request().getFormAttribute("name");
 
@@ -60,7 +64,14 @@ public class CredentialsRoutes {
 
     var password = context.request().getFormAttribute("password");
 
-    if (password.length() < 8) {
+    if(username==null || name==null || password==null)
+    {
+      context.response().end("name,username and password are required");
+      return;
+    }
+
+    if (password.length() < 8)
+    {
       context.response().end("Password Length Must be 8");
       return;
     }
@@ -69,8 +80,6 @@ public class CredentialsRoutes {
       context.response().end("Username and Name must not be empty");
       return;
     }
-//    var protocol = context.request().getFormAttribute("protocol");
-    var protocol = 1;//1 for ssh , 2 for winrm
 
     Future<Void> result = credentialDB.save(sqlClient,
       new Credential(name, username, password, LocalDateTime.now().toString(), 1));
@@ -93,8 +102,8 @@ public class CredentialsRoutes {
 
   }
 
-  // Method to retrieve a specific credential by name
-  static void getCredential(RoutingContext context, SqlClient sqlClient) {
+  static void getCredential(RoutingContext context, SqlClient sqlClient)
+  {
     var name = context.pathParam("name").trim();
 
     if (name.length() <= 0)
@@ -118,9 +127,9 @@ public class CredentialsRoutes {
   }
 
   // Method to retrieve all credentials
-  static void getAllCredential(RoutingContext context, SqlClient sqlClient) {
+  static void getAllCredential(RoutingContext context, SqlClient sqlClient)
+  {
 
-    System.out.println("Need All Credentials");
 
     credentialDB.getCredential(sqlClient)
 
@@ -181,31 +190,16 @@ public class CredentialsRoutes {
 
         System.out.println("Success Result : " + successHandler);
 
+        context.response().end("Credential Deleted ");
       })
 
       .onFailure(failureHandler -> {
 
         System.out.println("failure Result " + failureHandler.getMessage());
 
+        context.response().end("Credential not found!");
+
       });
   }
 
-  static String hashPassword(String password)
-  {
-    try
-    {
-
-      MessageDigest digest = MessageDigest.getInstance("SHA-256");
-
-      byte[] hashedBytes = digest.digest(password.getBytes(StandardCharsets.UTF_8));
-
-      return Base64.getEncoder().encodeToString(hashedBytes);
-
-    }
-    catch (Exception exception) {
-
-      return null;
-
-    }
-  }
 }

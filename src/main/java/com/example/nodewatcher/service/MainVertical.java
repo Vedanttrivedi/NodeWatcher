@@ -4,6 +4,7 @@ import com.example.nodewatcher.db.DiscoveryDB;
 import com.example.nodewatcher.routes.CredentialsRoutes;
 import com.example.nodewatcher.routes.DiscoveryRoutes;
 import com.example.nodewatcher.routes.ProvisionalRoutes;
+import com.example.nodewatcher.utils.Config;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
@@ -16,17 +17,14 @@ import org.zeromq.ZMQ;
 
 public class MainVertical extends AbstractVerticle
 {
-  final static int port = 4500;
 
   private SqlClient sqlClient;
 
-  private DiscoveryDB discoveryDB;
-
   public MainVertical(SqlClient sqlClient)
   {
+
     this.sqlClient =sqlClient;
 
-    discoveryDB = new DiscoveryDB(sqlClient);
   }
 
   @Override
@@ -43,11 +41,12 @@ public class MainVertical extends AbstractVerticle
 
     });
 
+
     CredentialsRoutes.attach(router,sqlClient);
 
     ProvisionalRoutes.attach(router, sqlClient);
 
-    vertx.deployVerticle(new DiscoveryRoutes(router,discoveryDB));
+    vertx.deployVerticle(new DiscoveryRoutes(router,sqlClient));
 
     System.out.println("Attached discovery routes");
 
@@ -60,9 +59,9 @@ public class MainVertical extends AbstractVerticle
       })
       .requestHandler(router)
 
-      .listen(port,http->{
+      .listen(Config.HTTP_PORT, http->{
 
-        System.out.println("trying to listen on port "+port);
+        System.out.println("trying to listen on port "+Config.HTTP_PORT);
 
         if(http.succeeded())
         {
@@ -73,9 +72,9 @@ public class MainVertical extends AbstractVerticle
 
         else
         {
-          System.out.println("Failed to listen on port "+port);
+          System.out.println("Failed to listen on port "+Config.HTTP_PORT);
 
-          startPromise.fail("Not Able to listen on port "+port);
+          startPromise.fail("Not Able to listen on port "+Config.HTTP_PORT);
         }
 
       });
