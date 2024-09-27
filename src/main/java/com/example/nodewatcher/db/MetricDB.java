@@ -29,7 +29,6 @@ public class MetricDB
 
             var discovery_id = row.getInteger(0);
 
-            System.out.println("Discovery Id "+ discovery_id);
 
             sqlClient.preparedQuery("INSERT INTO Memory_Metric(discoveryId,free,swap,used," +
               "cache,disc_used,created_at) VALUES (?,?,?,?,?,?,?)")
@@ -77,7 +76,6 @@ public class MetricDB
 
             var discovery_id = row.getInteger(0);
 
-            System.out.println("Discovery Id "+ discovery_id);
 
             sqlClient.preparedQuery("INSERT INTO CPU_Metric(discoveryId,percentage,load_average,process_counts," +
                 "io_percent,threads,created_at) VALUES (?,?,?,?,?,?,?)")

@@ -52,7 +52,6 @@ public class PingVertical extends AbstractVerticle
 
     var future = promise.future();
 
-    System.out.println("About to ping "+ip);
 
     vertx.executeBlocking(
 
@@ -60,7 +59,6 @@ public class PingVertical extends AbstractVerticle
 
         var processBuilder  = new ProcessBuilder("fping","-c","3",ip);
 
-        System.out.println("Execute blocking !");
 
         try
         {

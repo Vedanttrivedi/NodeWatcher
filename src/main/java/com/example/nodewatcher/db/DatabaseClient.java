@@ -27,25 +27,6 @@ public class DatabaseClient
 
     sqlClient = MySQLPool.pool(vertx, connectOptions, poolOptions);
 
-    sqlClient.query("SELECT * FROM Credentials").execute()
-
-      .onComplete(result -> {
-
-        if (result.succeeded())
-        {
-          RowSet<Row> rowSet = result.result();
-
-          System.out.println("Query succeeded with " + rowSet.size() + " rows.");
-
-        }
-        else
-        {
-
-          System.out.println("Query failed: " + result.cause().getMessage());
-
-        }
-      });
-
     return sqlClient;
 
   }

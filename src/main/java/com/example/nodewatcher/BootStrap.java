@@ -52,7 +52,7 @@ public class BootStrap
 
   private static Future<Void> deployInitialVerticles(Vertx vertx, MySQLPool databaseClient, ZContext context)
   {
-    return CompositeFuture.all
+    return Future.all
       (
       vertx.deployVerticle(new MainVertical(databaseClient)),
 
@@ -71,7 +71,7 @@ public class BootStrap
   private static Future<Void> deployPluginDataReceiverAndSaver(Vertx vertx, MySQLPool databaseClient, ZContext context)
   {
 
-    return CompositeFuture.all
+    return Future.all
       (
       vertx.deployVerticle(
         new PluginDataReceiver(context),

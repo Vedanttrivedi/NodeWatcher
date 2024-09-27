@@ -101,7 +101,6 @@ public class PluginDataSaver extends AbstractVerticle
 
                   ((JsonObject) device).remove("password");
 
-
                 }
                 else
                 {
@@ -116,7 +115,7 @@ public class PluginDataSaver extends AbstractVerticle
         }
         catch (Exception exception)
         {
-          logger.error("error",exception);
+          logger.error("error ",exception.getMessage());
         }
 
     });

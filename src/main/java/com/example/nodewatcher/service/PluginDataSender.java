@@ -106,6 +106,7 @@ public class PluginDataSender extends AbstractVerticle
       pingDevice(ip, row, remainingRows, atLeastOnePingable);
 
     });
+
   }
 
   private void pingDevice(String ip,Row row, AtomicInteger remainingRows, AtomicBoolean atLeastOnePingable)
@@ -122,8 +123,7 @@ public class PluginDataSender extends AbstractVerticle
       }
       else
       {
-
-        System.out.println("Device is Down: " + ip);
+          logger.info("Bootstrap : Device is Down "+ip);
 
       }
       checkIfProcessingComplete(remainingRows, atLeastOnePingable);
