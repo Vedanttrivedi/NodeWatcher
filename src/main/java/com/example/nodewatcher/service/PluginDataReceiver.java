@@ -11,13 +11,11 @@ public class PluginDataReceiver extends AbstractVerticle
 {
   private ZMQ.Socket pullSocket;
 
-  private ZContext context;
 
 
   public PluginDataReceiver(ZContext context)
   {
 
-    this.context = context;
 
     this.pullSocket = context.createSocket(SocketType.PULL);
 
@@ -36,12 +34,11 @@ public class PluginDataReceiver extends AbstractVerticle
 
   public void starter()
   {
-
+    System.out.println("Receiver Loaded");
     try
     {
       while (true)
       {
-
         var message = pullSocket.recvStr();
 
         if (message != null)

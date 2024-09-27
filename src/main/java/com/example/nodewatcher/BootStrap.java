@@ -70,6 +70,7 @@ public class BootStrap
 
   private static Future<Void> deployPluginDataReceiverAndSaver(Vertx vertx, MySQLPool databaseClient, ZContext context)
   {
+
     return CompositeFuture.all
       (
       vertx.deployVerticle(
@@ -81,6 +82,5 @@ public class BootStrap
     ).mapEmpty();
 
   }
-
 
 }

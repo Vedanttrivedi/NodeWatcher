@@ -16,7 +16,6 @@ import io.vertx.ext.web.handler.TimeoutHandler;
 import io.vertx.sqlclient.SqlClient;
 import org.slf4j.LoggerFactory;
 
-import java.util.concurrent.atomic.AtomicBoolean;
 
 public class DiscoveryRoutes extends AbstractVerticle
 {

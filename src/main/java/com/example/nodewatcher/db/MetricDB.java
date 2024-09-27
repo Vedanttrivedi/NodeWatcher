@@ -41,7 +41,7 @@ public class MetricDB
 
                 if(result.succeeded())
                 {
-                  System.out.println("Rows Added in db ");
+                  //System.out.println("Rows Added in db ");
 
                 }
                 else
@@ -89,7 +89,7 @@ public class MetricDB
 
                 if(result.succeeded())
                 {
-                  System.out.println("Rows Added in CPU DB ");
+                  //System.out.println("Rows Added in CPU DB ");
 
                 }
                 else
@@ -170,7 +170,7 @@ public class MetricDB
 
     var query = "SELECT m.* FROM CPU_Metric m " +
       "JOIN Discovery d ON m.discoveryId = d.id " +
-      "WHERE d.name = ? ORDER BY created_at DESC LIMIT ?";
+      "WHERE d.name = ? ORDER BY created_at DESC";
 
     return sqlClient.preparedQuery(query)
       .execute(Tuple.of(discoveryName))

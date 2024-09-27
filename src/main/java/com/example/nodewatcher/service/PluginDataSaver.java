@@ -61,7 +61,7 @@ public class PluginDataSaver extends AbstractVerticle
 
               if(metric.equals("memory"))
               {
-                //If the Device is Down Save the timings with default value
+
                 if(devicesInfo.getBoolean("status"))
                 {
                   var memory_metric = Memory_Metric.fromJson((JsonObject) device);
@@ -72,21 +72,20 @@ public class PluginDataSaver extends AbstractVerticle
 
                   MetricDB.saveMemory(sqlClient,memory_metric,timestamp);
 
-                  logger.info("Metric Collected "+device);
+                  ((JsonObject) device).remove("password");
 
                 }
                 else
                 {
                   System.out.println("Could not collect information at "+LocalDateTime.now().toString());
 
-                  logger.info("Device Credential Or Network Issue "+device);
+                  logger.error("Device Credential Or Network Issue "+device);
 
                 }
 
               }
               else if(metric.equals("cpu"))
               {
-                log.log(Level.INFO,"Arrived in Cpu Saver!!!");
 
                 if(devicesInfo.getBoolean("status"))
                 {
@@ -100,8 +99,9 @@ public class PluginDataSaver extends AbstractVerticle
 
                   MetricDB.saveCpu(sqlClient,cpuMetric,timestamp);
 
+                  ((JsonObject) device).remove("password");
 
-                  logger.info("Metric Collected"+device);
+
                 }
                 else
                 {

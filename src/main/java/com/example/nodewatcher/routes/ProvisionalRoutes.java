@@ -76,7 +76,7 @@ public class ProvisionalRoutes
     provisionDB.getCPUMetrics(sqlClient, discoveryName)
       .onSuccess(metrics -> ctx.response()
         .putHeader("content-type", "application/json")
-        .end(metrics.encode()))
+        .end(metrics.encodePrettily()))
 
       .onFailure(err -> ctx.response()
         .setStatusCode(500)

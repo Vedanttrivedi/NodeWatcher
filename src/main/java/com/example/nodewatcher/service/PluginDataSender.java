@@ -50,15 +50,16 @@ public class PluginDataSender extends AbstractVerticle
   @Override
   public void start(Promise<Void> startPromise) throws Exception
   {
-    System.out.println("Plugin Sender Loaded");
 
     vertx.eventBus().<JsonObject>localConsumer(Address.PLUGINDATASENDER, pluginSenderHandler->{
 
       handleNewDeviceData(pluginSenderHandler.body());
 
     });
+    startPromise.complete();
 
-    fetchAndProcessDiscoveries(startPromise);
+    fetchAndProcessDiscoveries();
+
   }
 
 
@@ -67,11 +68,11 @@ public class PluginDataSender extends AbstractVerticle
 
     var updatedRequestResponse = new JsonArray().add(device);
 
-    sendDataToPlugin(updatedRequestResponse, Promise.promise());
+    sendDataToPlugin(updatedRequestResponse);
 
   }
 
-  private void fetchAndProcessDiscoveries(Promise<Void> startPromise)
+  private void fetchAndProcessDiscoveries()
   {
 
     sqlClient.query("SELECT d.name, d.ip, c.username, c.password, c.protocol " +
@@ -82,17 +83,17 @@ public class PluginDataSender extends AbstractVerticle
 
         if (result.succeeded())
         {
-          processDiscoveryResults(result.result(), startPromise);
+          processDiscoveryResults(result.result());
         }
         else
         {
-          startPromise.fail("Failed to query database: " + result.cause().getMessage());
+          logger.error("Error Fetching Details ");
         }
 
       });
   }
 
-  private void processDiscoveryResults(RowSet<Row> rows, Promise<Void> startPromise)
+  private void processDiscoveryResults(RowSet<Row> rows)
   {
     AtomicInteger remainingRows = new AtomicInteger(rows.size());
 
@@ -102,12 +103,12 @@ public class PluginDataSender extends AbstractVerticle
     {
       String ip = row.getString(1);
 
-      pingDevice(ip, row, remainingRows, atLeastOnePingable, startPromise);
+      pingDevice(ip, row, remainingRows, atLeastOnePingable);
 
     });
   }
 
-  private void pingDevice(String ip,Row row, AtomicInteger remainingRows, AtomicBoolean atLeastOnePingable, Promise<Void> startPromise)
+  private void pingDevice(String ip,Row row, AtomicInteger remainingRows, AtomicBoolean atLeastOnePingable)
   {
     JsonObject pingBody = new JsonObject().put("ip", ip);
 
@@ -125,52 +126,46 @@ public class PluginDataSender extends AbstractVerticle
         System.out.println("Device is Down: " + ip);
 
       }
-      checkIfProcessingComplete(remainingRows, atLeastOnePingable, startPromise);
+      checkIfProcessingComplete(remainingRows, atLeastOnePingable);
     });
 
   }
 
   private void addDeviceToResponseData(io.vertx.sqlclient.Row row)
   {
-    JsonObject discoveryAndCredential = new JsonObject()
+    var discoveryAndCredential = new JsonObject()
       .put("discoveryName", row.getString(0))
       .put("ip", row.getString(1))
       .put("username", row.getString(2))
       .put("password", row.getString(3))
       .put("doPolling",true);
 
-    System.out.println("Adding this discovery: " + discoveryAndCredential);
-
     responseData.add(discoveryAndCredential);
 
   }
 
-  private void checkIfProcessingComplete(AtomicInteger remainingRows, AtomicBoolean atLeastOnePingable, Promise<Void> startPromise)
+  private void checkIfProcessingComplete(AtomicInteger remainingRows, AtomicBoolean atLeastOnePingable)
   {
     if (remainingRows.decrementAndGet() == 0)
     {
       if (atLeastOnePingable.get())
       {
-        System.out.println("Processing complete, sending data through ZMQ: " + responseData);
 
-        sendDataToPlugin(responseData, startPromise);
+        sendDataToPlugin(responseData);
       }
       else
       {
-
-        startPromise.complete(); // No pingable devices found, but not considering it as a failure
+          logger.error("App Start: No Ping Device Found!");
 
       }
     }
   }
 
-  private void sendDataToPlugin(JsonArray data, Promise<Void> promise)
+  private void sendDataToPlugin(JsonArray data)
   {
-    JsonObject fetchDetails = createFetchDetailsObject();
+    var fetchDetails = createFetchDetailsObject();
 
     data.add(fetchDetails);
-
-    logger.info("New Device Arrived "+ data);
 
     try
     {
@@ -185,7 +180,6 @@ public class PluginDataSender extends AbstractVerticle
 
       startCpuPolling();
 
-      promise.complete();
     }
 
     catch (Exception e)
@@ -217,13 +211,11 @@ public class PluginDataSender extends AbstractVerticle
     {
       long currentTime = System.currentTimeMillis();
 
-      // Check if it's time for memory polling
       if (currentTime - lastMemoryPoll[0] >= Address.MEMORYINTERVAL)
       {
 
         if (startPolling.get())
         {
-          System.out.println("Trying memory polling " + startPolling.get());
 
           var data = new JsonObject();
 
@@ -235,17 +227,14 @@ public class PluginDataSender extends AbstractVerticle
 
           socket.send(Base64.getEncoder().encode(jsonArray.encode().getBytes()));
 
-          System.out.println("Memory data has been sent");
         }
         lastMemoryPoll[0] = currentTime; // Update last memory poll time
       }
 
-      // Check if it's time for CPU polling
       if (currentTime - lastCpuPoll[0] >= Address.CPUNTERVAL)
       {
         if (startPolling.get())
         {
-          System.out.println("Trying CPU polling " + startPolling.get());
 
           var data = new JsonObject();
 
@@ -255,9 +244,8 @@ public class PluginDataSender extends AbstractVerticle
 
           jsonArray.add(data);
 
-          socket.send(Base64.getEncoder().encode(jsonArray.encode().getBytes()), ZMQ.DONTWAIT);
+          socket.send(Base64.getEncoder().encode(jsonArray.encode().getBytes()));
 
-          System.out.println("CPU data has been sent");
         }
         lastCpuPoll[0] = currentTime; // Update last CPU poll time
       }

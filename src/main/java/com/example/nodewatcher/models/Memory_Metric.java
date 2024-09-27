@@ -38,7 +38,6 @@ public class Memory_Metric extends Metric
 
       var disk_space = Integer.valueOf(object.getString("disk_space"));
 
-      System.out.println("Status failed ");
 
       return new Memory_Metric(ip,free,swap,used,cached,disk_space,object.getBoolean("status"));
 
