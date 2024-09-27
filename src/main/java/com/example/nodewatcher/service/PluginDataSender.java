@@ -13,7 +13,9 @@ import org.zeromq.SocketType;
 import org.zeromq.ZContext;
 import org.zeromq.ZMQ;
 
+import java.time.LocalDateTime;
 import java.util.Base64;
+import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -216,7 +218,7 @@ public class PluginDataSender extends AbstractVerticle
 
         if (startPolling.get())
         {
-
+          System.out.println("Memory polling "+ LocalDateTime.now().toString());
           var data = new JsonObject();
 
           data.put("metric", "memory");
@@ -236,6 +238,7 @@ public class PluginDataSender extends AbstractVerticle
         if (startPolling.get())
         {
 
+          System.out.println("Cpu polling "+ LocalDateTime.now().toString());
           var data = new JsonObject();
 
           data.put("metric", "cpu");

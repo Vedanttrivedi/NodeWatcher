@@ -18,7 +18,7 @@ public class Address
 
   public final static int MEMORYINTERVAL=20000;
 
-  public final static int CPUNTERVAL=25000;
+  public final static int CPUNTERVAL=30000;
 
   public final static String ENCRYPTION_ALGORITHM="AES";
 

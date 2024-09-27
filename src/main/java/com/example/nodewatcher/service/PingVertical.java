@@ -34,7 +34,6 @@ public class PingVertical extends AbstractVerticle
 
         if(result.succeeded())
         {
-          System.out.println("Device is reached");
 
           message.reply("Device is up");
 
