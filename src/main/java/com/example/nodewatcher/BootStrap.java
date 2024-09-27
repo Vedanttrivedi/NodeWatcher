@@ -54,9 +54,9 @@ public class BootStrap
   {
     return Future.all
       (
-      vertx.deployVerticle(new MainVertical(databaseClient)),
+      vertx.deployVerticle(new Client(databaseClient)),
 
-      vertx.deployVerticle(new PingVertical()),
+      vertx.deployVerticle(new PingChecker()),
 
       vertx.deployVerticle(
 

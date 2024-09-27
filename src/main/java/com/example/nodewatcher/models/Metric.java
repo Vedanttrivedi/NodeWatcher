@@ -11,7 +11,7 @@ public abstract class Metric
     this.ip = ip;
   }
 
-  public String getIp()
+  protected String getIp()
   {
     return ip;
   }

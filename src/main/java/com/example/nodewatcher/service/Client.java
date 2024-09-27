@@ -1,26 +1,20 @@
 package com.example.nodewatcher.service;
 
-import com.example.nodewatcher.db.DiscoveryDB;
 import com.example.nodewatcher.routes.CredentialsRoutes;
 import com.example.nodewatcher.routes.DiscoveryRoutes;
 import com.example.nodewatcher.routes.ProvisionalRoutes;
 import com.example.nodewatcher.utils.Config;
 import io.vertx.core.AbstractVerticle;
-import io.vertx.core.Future;
 import io.vertx.core.Promise;
-import io.vertx.core.net.NetClient;
-import io.vertx.core.net.NetClientOptions;
 import io.vertx.ext.web.Router;
-import io.vertx.mysqlclient.MySQLPool;
 import io.vertx.sqlclient.SqlClient;
-import org.zeromq.ZMQ;
 
-public class MainVertical extends AbstractVerticle
+public class Client extends AbstractVerticle
 {
 
   private SqlClient sqlClient;
 
-  public MainVertical(SqlClient sqlClient)
+  public Client(SqlClient sqlClient)
   {
 
     this.sqlClient =sqlClient;

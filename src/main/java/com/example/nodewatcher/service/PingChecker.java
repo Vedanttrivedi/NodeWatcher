@@ -11,7 +11,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 
-public class PingVertical extends AbstractVerticle
+public class PingChecker extends AbstractVerticle
 {
 
   @Override
