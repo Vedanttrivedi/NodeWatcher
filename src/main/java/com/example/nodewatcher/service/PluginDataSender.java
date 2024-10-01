@@ -57,9 +57,10 @@ public class PluginDataSender extends AbstractVerticle
       handleNewDeviceData(pluginSenderHandler.body());
 
     });
-    startPromise.complete();
 
     fetchAndProcessDiscoveries();
+
+    startPromise.complete();
 
   }
 
@@ -120,7 +121,8 @@ public class PluginDataSender extends AbstractVerticle
       {
         addDeviceToResponseData(row);
 
-        atLeastOnePingable.set(true);
+        if(!atLeastOnePingable.get())
+          atLeastOnePingable.set(true);
       }
       else
       {
@@ -132,7 +134,7 @@ public class PluginDataSender extends AbstractVerticle
 
   }
 
-  private void addDeviceToResponseData(io.vertx.sqlclient.Row row)
+  private void addDeviceToResponseData(Row row)
   {
     var discoveryAndCredential = new JsonObject()
       .put("discoveryName", row.getString(0))

@@ -2,6 +2,7 @@ package com.example.nodewatcher.service;
 
 import com.example.nodewatcher.routes.CredentialsRoutes;
 import com.example.nodewatcher.routes.DiscoveryRoutes;
+import com.example.nodewatcher.routes.ErrorRoutes;
 import com.example.nodewatcher.routes.ProvisionalRoutes;
 import com.example.nodewatcher.utils.Config;
 import io.vertx.core.AbstractVerticle;
@@ -28,12 +29,13 @@ public class Client extends AbstractVerticle
 
     Router router = Router.router(vertx);
 
-
     CredentialsRoutes.attach(router,sqlClient);
 
     ProvisionalRoutes.attach(router, sqlClient);
 
     vertx.deployVerticle(new DiscoveryRoutes(router,sqlClient));
+
+    ErrorRoutes.attach(router);
 
     vertx.createHttpServer()
 
@@ -59,5 +61,12 @@ public class Client extends AbstractVerticle
         }
 
       });
+
+  }
+
+  @Override
+  public void stop(Promise<Void> stopPromise) throws Exception
+  {
+    super.stop(stopPromise);
   }
 }

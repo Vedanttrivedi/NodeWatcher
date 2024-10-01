@@ -10,11 +10,6 @@ import io.vertx.ext.web.handler.BodyHandler;
 import io.vertx.ext.web.handler.TimeoutHandler;
 import io.vertx.mysqlclient.MySQLPool;
 import io.vertx.sqlclient.SqlClient;
-import io.vertx.sqlclient.Tuple;
-
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.util.Base64;
 

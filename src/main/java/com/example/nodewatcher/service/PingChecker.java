@@ -129,7 +129,7 @@ public class PingChecker extends AbstractVerticle
 
       session.connect();
 
-      System.out.println("Authenticaion Completed!");
+      System.out.println("Authentication Completed!");
 
       promise.complete(true);
 
@@ -142,7 +142,6 @@ public class PingChecker extends AbstractVerticle
     }
 
     return promise.future();
-
   }
 
 }
