@@ -4,6 +4,7 @@ import com.example.nodewatcher.models.Discovery;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import io.vertx.core.json.JsonArray;
+import io.vertx.core.json.JsonObject;
 import io.vertx.sqlclient.Row;
 import io.vertx.sqlclient.RowSet;
 import io.vertx.sqlclient.SqlClient;
@@ -36,6 +37,37 @@ public class DiscoveryDB
         }
       })
       .onFailure(promise::fail);
+    return promise.future();
+  }
+  public Future<JsonObject> findCredential(String credentialName)
+  {
+    Promise<JsonObject> promise = Promise.promise();
+
+    sqlClient.preparedQuery("SELECT id,username,password FROM Credentials WHERE name = ?")
+      .execute(Tuple.of(credentialName.trim()))
+      .onSuccess(rows -> {
+        if (rows.size() > 0)
+        {
+          var credentialId = rows.iterator().next().getInteger(0);
+
+          var username = rows.iterator().next().getString(1);
+
+          var password = rows.iterator().next().getString(2);
+
+          var payLoad = new JsonObject();
+          payLoad.put("id",credentialId);
+          payLoad.put("username",username);
+          payLoad.put("password",password);
+
+          promise.complete(payLoad);
+        }
+        else
+        {
+          promise.fail("Credentials do not exist");
+        }
+      })
+      .onFailure(promise::fail);
+
     return promise.future();
   }
 
@@ -88,7 +120,6 @@ public class DiscoveryDB
           var discovery = new Discovery(row.getInteger("id"), row.getString("name"), row.getInteger("credentialID"),row.getString("ip"),
             row.getBoolean("is_provisioned"), row.getLocalDateTime("created_at").toString());
 
-          response.add(discovery.toJson("Down"));
         });
         return response;
       });
@@ -129,11 +160,10 @@ public class DiscoveryDB
       .execute(Tuple.of(name, ip))
       .onSuccess(rows ->
       {
-        if(rows.rowCount()==0)
+        if(rows.rowCount()==0 && rows.size()==0)
           discoveryIpNamePromise.complete("Add");
         else
           discoveryIpNamePromise.complete("Remove");
-
       })
       .onFailure(failureHandler->{
 

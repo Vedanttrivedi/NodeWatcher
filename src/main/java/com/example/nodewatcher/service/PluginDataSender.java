@@ -12,16 +12,15 @@ import org.slf4j.LoggerFactory;
 import org.zeromq.SocketType;
 import org.zeromq.ZContext;
 import org.zeromq.ZMQ;
-
+import  org.slf4j.*;
 import java.time.LocalDateTime;
 import java.util.Base64;
-import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class PluginDataSender extends AbstractVerticle
 {
-  private static final org.slf4j.Logger logger = LoggerFactory.getLogger(PluginDataSaver.class);
+  private static final Logger logger = LoggerFactory.getLogger(PluginDataSaver.class);
 
   private final AtomicBoolean startPolling;
 
@@ -42,7 +41,7 @@ public class PluginDataSender extends AbstractVerticle
 
     this.socket = context.createSocket(SocketType.PUSH);
 
-    this.socket.bind(Address.PUSHSOCKET);
+    this.socket.bind(Address.PUSH_SOCKET);
 
     this.responseData = new JsonArray();
 
@@ -53,7 +52,7 @@ public class PluginDataSender extends AbstractVerticle
   public void start(Promise<Void> startPromise) throws Exception
   {
 
-    vertx.eventBus().<JsonObject>localConsumer(Address.PLUGINDATASENDER, pluginSenderHandler->{
+    vertx.eventBus().<JsonObject>localConsumer(Address.PLUGIN_DATA_SENDER, pluginSenderHandler->{
 
       handleNewDeviceData(pluginSenderHandler.body());
 
@@ -174,13 +173,15 @@ public class PluginDataSender extends AbstractVerticle
 
       var base64Encoded = Base64.getEncoder().encode(data.encode().getBytes());
 
-      socket.send(base64Encoded,ZMQ.DONTWAIT);
+     // socket.send(base64Encoded); //This Operation is blocked till plugin is not connected
+      var sent = socket.send(base64Encoded,ZMQ.DONTWAIT); //
 
-      startPolling.set(true);
+      if(!startPolling.get() && sent)
+        startPolling.set(true);
 
       System.out.println("Data sent successfully");
 
-      startCpuPolling();
+      startPolling();
 
     }
 
@@ -204,7 +205,7 @@ public class PluginDataSender extends AbstractVerticle
 
   }
 
-  private void startCpuPolling()
+  private void startPolling()
   {
     final long[] lastMemoryPoll = {System.currentTimeMillis()};
     final long[] lastCpuPoll = {System.currentTimeMillis()};
@@ -213,12 +214,13 @@ public class PluginDataSender extends AbstractVerticle
     {
       long currentTime = System.currentTimeMillis();
 
-      if (currentTime - lastMemoryPoll[0] >= Address.MEMORYINTERVAL)
+      if (currentTime - lastMemoryPoll[0] >= Address.MEMORY_INTERVAL)
       {
 
         if (startPolling.get())
         {
           System.out.println("Memory polling "+ LocalDateTime.now().toString());
+
           var data = new JsonObject();
 
           data.put("metric", "memory");
@@ -233,7 +235,7 @@ public class PluginDataSender extends AbstractVerticle
         lastMemoryPoll[0] = currentTime; // Update last memory poll time
       }
 
-      if (currentTime - lastCpuPoll[0] >= Address.CPUNTERVAL)
+      if (currentTime - lastCpuPoll[0] >= Address.CPU_INTERVAL)
       {
         if (startPolling.get())
         {

@@ -3,6 +3,7 @@ package com.example.nodewatcher.db;
 import com.example.nodewatcher.models.Cpu_Metric;
 import com.example.nodewatcher.models.Memory_Metric;
 import io.vertx.core.Future;
+import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.sqlclient.SqlClient;
@@ -60,8 +61,6 @@ public class MetricDB
   public static void saveCpu(SqlClient sqlClient, Cpu_Metric cpuMetric, Timestamp timestamp)
   {
 
-    System.out.println("In the save cpu "+cpuMetric.getIp()+"sql client :"+sqlClient);
-
     var discoveryIp = cpuMetric.getIp();
 
     sqlClient.preparedQuery("SELECT id FROM Discovery WHERE ip = ?")
@@ -116,6 +115,10 @@ public class MetricDB
       .execute(Tuple.of(discoveryName))
       .map(rows -> {
         JsonArray metricsArray = new JsonArray();
+        var config = new JsonObject();
+        config.put("metric","memory");
+        config.put("storeFormat","bytes");
+        metricsArray.add(config);
         rows.forEach(row -> {
           JsonObject metric = new JsonObject()
             .put("created_at", row.getLocalDateTime("created_at").toString())
@@ -127,6 +130,7 @@ public class MetricDB
 
           metricsArray.add(metric);
         });
+
         return metricsArray;
       });
   }
@@ -143,6 +147,10 @@ public class MetricDB
       .execute(Tuple.of(discoveryName,n))
       .map(rows -> {
         JsonArray metricsArray = new JsonArray();
+        var config = new JsonObject();
+        config.put("metric","memory");
+        config.put("storeFormat","bytes");
+        metricsArray.add(config);
         rows.forEach(row -> {
           JsonObject metric = new JsonObject()
 

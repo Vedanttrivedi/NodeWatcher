@@ -80,6 +80,11 @@
 
     </dependency>
     <dependency>
+      <groupId>com.github.mwiede</groupId>
+      <artifactId>jsch</artifactId>
+      <version>0.2.15</version>
+    </dependency>
+    <dependency>
       <groupId>io.vertx</groupId>
       <artifactId>vertx-mysql-client</artifactId>
       <version>4.5.10</version>

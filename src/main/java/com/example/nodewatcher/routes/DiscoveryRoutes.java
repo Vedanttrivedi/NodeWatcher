@@ -27,6 +27,7 @@ public class DiscoveryRoutes extends AbstractVerticle
   public DiscoveryRoutes(Router router, SqlClient databaseClient)
   {
     this.router = router;
+
     this.discoveryDB = new DiscoveryDB(databaseClient);
   }
 
@@ -42,7 +43,7 @@ public class DiscoveryRoutes extends AbstractVerticle
     router.post("/discovery/create")
       .handler(TimeoutHandler.create(5000))
       .handler(BodyHandler.create())
-      .handler(this::createDiscovery);
+      .handler(this::createSSHDiscovery);
 
     router.get("/discovery/get/:name").handler(this::getDiscovery);
 
@@ -61,6 +62,12 @@ public class DiscoveryRoutes extends AbstractVerticle
   void findCredentialId(String credentialName, Promise<Integer> promise)
   {
     discoveryDB.findCredentialId(credentialName)
+      .onSuccess(promise::complete)
+      .onFailure(promise::fail);
+  }
+  void findCredential(String credentialName, Promise<JsonObject> promise)
+  {
+    discoveryDB.findCredential(credentialName)
       .onSuccess(promise::complete)
       .onFailure(promise::fail);
   }
@@ -95,7 +102,7 @@ public class DiscoveryRoutes extends AbstractVerticle
         }
         else
         {
-          vertx.eventBus().request(Address.PINGCHECK, data, reply ->
+          vertx.eventBus().request(Address.SSHCHECK, data, reply ->
           {
             if (reply.succeeded())
             {
@@ -119,36 +126,6 @@ public class DiscoveryRoutes extends AbstractVerticle
     ).onFailure(err -> context.response().setStatusCode(404).end(err.getMessage()));
   }
 
-  private Future<Void> pingAndSaveDiscovery(RoutingContext context, JsonObject data, String name, String ip, Integer credentialId)
-  {
-    Promise<Void> promise = Promise.promise();
-
-    vertx.eventBus().request(Address.PINGCHECK, data, new DeliveryOptions().setSendTimeout(5000), reply ->
-    {
-      if (reply.succeeded())
-      {
-        discoveryDB.createDiscovery(name, ip, credentialId)
-          .onSuccess(v -> {
-
-            context.response().end("<h1>" + reply.result().body() + ", Saved in DB. You can provision it later.</h1>");
-
-
-            promise.complete();
-          })
-          .onFailure(err -> {
-            context.response().end("Error saving to database: " + err.getMessage());
-            promise.fail(err);
-          });
-      }
-      else
-      {
-        context.response().end("Device is down! Cannot add. Try again!");
-        promise.complete();
-      }
-    });
-
-    return promise.future();
-  }
 
   void getDiscovery(RoutingContext context)
   {
@@ -264,7 +241,7 @@ public class DiscoveryRoutes extends AbstractVerticle
 
                   System.out.println("About to send "+discoveryAndCredentialBody);
 
-                  vertx.eventBus().send(Address.PLUGINDATASENDER,discoveryAndCredentialBody);
+                  vertx.eventBus().send(Address.PLUGIN_DATA_SENDER,discoveryAndCredentialBody);
 
                   System.out.println("Row Updation Result "+rowResult.rowCount()+"\t"+rowResult.size()+"\t Do Provision Result "+doProvision);
 
@@ -292,8 +269,66 @@ public class DiscoveryRoutes extends AbstractVerticle
       context.response().end("invalid value for status . Must be 0 or 1");
 
       logger.error("Error "+exception.getMessage());
-      return;
     }
 
   }
+
+  void createSSHDiscovery(RoutingContext context)
+  {
+
+    var ip = context.request().getFormAttribute("ip");
+
+    var name = context.request().getFormAttribute("name");
+
+    var credentialName = context.request().getFormAttribute("credential_name");
+
+    Promise<JsonObject> credentialPromise = Promise.promise();
+
+    Promise<String> discoveryIpNamePromise = Promise.promise();
+
+    findCredential(credentialName, credentialPromise);
+
+    discoveryDB.sameIpAndDiscoveryNameExists(ip, name, discoveryIpNamePromise);
+
+    credentialPromise.future().compose(credential ->
+      discoveryIpNamePromise.future().compose(duplicateRow ->
+      {
+        if (duplicateRow.equals("Remove"))
+        {
+          context.response().end("Discovery with same Ip or Name already present!");
+
+          return Future.failedFuture("duplicate data entry");
+
+        }
+        else
+        {
+          credential.put("ip",ip);
+
+          System.out.println("Credential Object Created !");
+
+          vertx.eventBus().request(Address.SSHCHECK, credential, reply ->
+          {
+            if (reply.succeeded())
+            {
+              context.response().end("<h1>" + reply.result().body() + ", Saved in DB. You can provision it later.</h1>");
+
+              logger.error("Discovery in reach ",reply.cause());
+
+            }
+            else
+            {
+              context.response().end("Device is Down");
+
+              logger.error("Discovery not in reach ",reply.cause());
+
+            }
+          });
+
+          return discoveryDB.createDiscovery(name, ip, credential.getInteger("id"));
+
+        }
+      })
+    ).onFailure(err -> context.response().setStatusCode(404).end(err.getMessage()));
+  }
+
 }

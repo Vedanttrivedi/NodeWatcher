@@ -28,13 +28,6 @@ public class Client extends AbstractVerticle
 
     Router router = Router.router(vertx);
 
-    router.get("/").handler(context1 -> {
-
-      context1.response().
-        end("<h1>Connected to LiteNMS </h1>");
-
-    });
-
 
     CredentialsRoutes.attach(router,sqlClient);
 
@@ -42,33 +35,27 @@ public class Client extends AbstractVerticle
 
     vertx.deployVerticle(new DiscoveryRoutes(router,sqlClient));
 
-    System.out.println("Attached discovery routes");
-
     vertx.createHttpServer()
 
       .exceptionHandler(handler->{
 
         System.out.println("Something went wrong "+ handler.getLocalizedMessage());
 
+        startPromise.fail(handler.getCause());
+
       })
       .requestHandler(router)
 
       .listen(Config.HTTP_PORT, http->{
 
-        System.out.println("trying to listen on port "+Config.HTTP_PORT);
-
         if(http.succeeded())
         {
-          System.out.println("Listening on port");
-
           startPromise.complete();
         }
 
         else
         {
-          System.out.println("Failed to listen on port "+Config.HTTP_PORT);
-
-          startPromise.fail("Not Able to listen on port "+Config.HTTP_PORT);
+            startPromise.fail("Not Able to listen on port "+Config.HTTP_PORT);
         }
 
       });

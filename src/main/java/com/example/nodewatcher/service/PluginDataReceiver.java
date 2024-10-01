@@ -7,34 +7,26 @@ import org.zeromq.SocketType;
 import org.zeromq.ZContext;
 import org.zeromq.ZMQ;
 
-public class PluginDataReceiver extends AbstractVerticle
+public class PluginDataReceiver extends Thread
 {
   private ZMQ.Socket pullSocket;
 
+  private Vertx vertx;
 
-
-  public PluginDataReceiver(ZContext context)
+  public PluginDataReceiver(ZContext context, Vertx vertx)
   {
 
 
     this.pullSocket = context.createSocket(SocketType.PULL);
 
-    pullSocket.connect(Address.PULLSOCKET);
+    pullSocket.connect(Address.PULL_SOCKET);
 
+    this.vertx = vertx;
   }
 
   @Override
-  public void start(Promise<Void> startPromise) throws Exception
+  public void run()
   {
-    startPromise.complete();
-
-    starter();
-
-  }
-
-  public void starter()
-  {
-    System.out.println("Receiver Loaded");
     try
     {
       while (true)
@@ -52,5 +44,4 @@ public class PluginDataReceiver extends AbstractVerticle
     }
 
   }
-
 }

@@ -18,9 +18,8 @@ public class BootStrap
   {
 
     var vertx = Vertx.vertx(
-      new VertxOptions()
 
-        .setWorkerPoolSize(Config.WORKER_POOL_SIZE)
+      new VertxOptions()
 
         .setMaxWorkerExecuteTime(Config.WORKER_THREAD_MAX_EXECUTION_TIME)
 
@@ -33,18 +32,29 @@ public class BootStrap
 
     deployInitialVerticles(vertx, databaseClient, context)
 
-      .compose(initialDeploymentResult -> deployPluginDataReceiverAndSaver(vertx, databaseClient, context))
-
       .onComplete(deploymentResult ->
       {
-
           if (deploymentResult.succeeded())
           {
-            LOGGER.log(Level.INFO, "All verticles deployed successfully");
+            Thread pluginDataReceiverThread = new PluginDataReceiver(context,vertx);
+
+            pluginDataReceiverThread.start();
+
+            vertx.deployVerticle(new PluginDataSaver(databaseClient),
+            dataSaverResult->{
+
+              if(dataSaverResult.succeeded())
+                System.out.println("Data Saver Deployed");
+              else
+              {
+                vertx.close();
+              }
+            });
+
           }
           else
           {
-            LOGGER.log(Level.SEVERE, "Failed to deploy verticles", deploymentResult.cause());
+            LOGGER.log(Level.SEVERE, "Failed to deploy verticals", deploymentResult.cause());
           }
 
         });
@@ -56,31 +66,13 @@ public class BootStrap
       (
       vertx.deployVerticle(new Client(databaseClient)),
 
-      vertx.deployVerticle(new PingChecker()),
+      vertx.deployVerticle(new PingChecker(),new DeploymentOptions().setThreadingModel(ThreadingModel.WORKER)),
 
       vertx.deployVerticle(
+        new PluginDataSender(databaseClient, context))
+      ).
 
-        new PluginDataSender(databaseClient, context),
-
-        new DeploymentOptions().setThreadingModel(ThreadingModel.WORKER))
-    ).
       mapEmpty();
-
-  }
-
-  private static Future<Void> deployPluginDataReceiverAndSaver(Vertx vertx, MySQLPool databaseClient, ZContext context)
-  {
-
-    return Future.all
-      (
-      vertx.deployVerticle(
-        new PluginDataReceiver(context),
-
-        new DeploymentOptions().setThreadingModel(ThreadingModel.WORKER)),
-
-        vertx.deployVerticle(new PluginDataSaver(databaseClient))
-    ).mapEmpty();
-
   }
 
 }

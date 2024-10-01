@@ -9,12 +9,8 @@ import io.vertx.core.Promise;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.sqlclient.SqlClient;
-import org.slf4j.LoggerFactory;
+import org.slf4j.*;
 import org.zeromq.ZMQ;
-
-import java.sql.SQLOutput;
-import java.util.logging.Level;
-import java.util.logging.*;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -24,7 +20,7 @@ import java.util.Base64;
 public class PluginDataSaver extends AbstractVerticle
 {
 
-  private static final org.slf4j.Logger logger = LoggerFactory.getLogger(PluginDataSaver.class);
+  private static final Logger logger = LoggerFactory.getLogger(PluginDataSaver.class);
 
   SqlClient sqlClient;
 
@@ -37,14 +33,11 @@ public class PluginDataSaver extends AbstractVerticle
   public void start(Promise<Void> startPromise) throws Exception
   {
 
-    var logManager = LogManager.getLogManager();
-
-    var log = logManager.getLogger(Logger.GLOBAL_LOGGER_NAME);
-
     vertx.eventBus().<String>localConsumer(Address.DUMPDB,handler->{
 
       try
         {
+
           var decodedBase64Data = Base64.getDecoder().decode(handler.body());
 
           var deviceDetails = new JsonArray(new String(decodedBase64Data, ZMQ.CHARSET));
@@ -54,6 +47,7 @@ public class PluginDataSaver extends AbstractVerticle
           var time = (String) deviceDetails.remove(lenOfMessage-1);
 
           var metric = deviceDetails.remove(lenOfMessage-2);
+
 
           deviceDetails.forEach(device->{
 
@@ -72,12 +66,9 @@ public class PluginDataSaver extends AbstractVerticle
 
                   MetricDB.saveMemory(sqlClient,memory_metric,timestamp);
 
-                  ((JsonObject) device).remove("password");
-
                 }
                 else
                 {
-                  System.out.println("Could not collect information at "+LocalDateTime.now().toString());
 
                   logger.error("Device Credential Or Network Issue "+device);
 
@@ -95,11 +86,7 @@ public class PluginDataSaver extends AbstractVerticle
 
                   var timestamp = Timestamp.valueOf(localDateTime);
 
-                  log.log(Level.FINE,"Cpu Information :"+cpuMetric);
-
                   MetricDB.saveCpu(sqlClient,cpuMetric,timestamp);
-
-                  ((JsonObject) device).remove("password");
 
                 }
                 else

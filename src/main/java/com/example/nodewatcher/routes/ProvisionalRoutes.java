@@ -1,7 +1,6 @@
 package com.example.nodewatcher.routes;
 
 import com.example.nodewatcher.db.MetricDB;
-import io.vertx.core.Vertx;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.sqlclient.SqlClient;
@@ -44,29 +43,28 @@ public class ProvisionalRoutes
 
   private static void getMemoryMetricsLastN(RoutingContext ctx, SqlClient sqlClient)
   {
-    String discoveryName = ctx.pathParam("discoveryName");
-
-    var nParam = ctx.pathParam("n");
-
-    int n;
 
     try
     {
-      n = Integer.parseInt(nParam);
-    }
-    catch (NumberFormatException e)
-    {
-      ctx.response().setStatusCode(400).end("Invalid time parameter");
-      return;
+
+      var discoveryName = ctx.pathParam("discoveryName");
+
+      var n = ctx.pathParam("n");
+
+      provisionDB.getMemoryMetricsLastN(sqlClient, discoveryName,Integer.parseInt(n))
+        .onSuccess(metrics -> ctx.response()
+          .putHeader("content-type", "application/json")
+          .end(metrics.encode()))
+        .onFailure(err -> ctx.response()
+          .setStatusCode(500)
+          .end("Error fetching memory metrics: " + err.getMessage()));
+
     }
 
-    provisionDB.getMemoryMetricsLastN(sqlClient, discoveryName,n)
-      .onSuccess(metrics -> ctx.response()
-        .putHeader("content-type", "application/json")
-        .end(metrics.encode()))
-      .onFailure(err -> ctx.response()
-        .setStatusCode(500)
-        .end("Error fetching memory metrics: " + err.getMessage()));
+    catch (Exception exception)
+    {
+      ctx.response().setStatusCode(400).end("Invalid time parameter");
+    }
 
   }
   private static void getCPUMetrics(RoutingContext ctx, SqlClient sqlClient)
@@ -86,31 +84,27 @@ public class ProvisionalRoutes
 
   private static void getCPUMetricsLastN(RoutingContext ctx, SqlClient sqlClient)
   {
-    String discoveryName = ctx.pathParam("discoveryName");
-
-    var nParam = ctx.pathParam("n");
-
-    int minute;
 
     try
     {
-      minute = Integer.parseInt(nParam);
+      var discoveryName = ctx.pathParam("discoveryName");
+
+      var n = ctx.pathParam("n");
+
+      provisionDB.getCPUMetricsLastN(sqlClient, discoveryName,Integer.parseInt(n))
+        .onSuccess(metrics -> ctx.response()
+          .putHeader("content-type", "application/json")
+          .end(metrics.encode()))
+        .onFailure(err -> ctx.response()
+          .setStatusCode(500)
+          .end("Error fetching memory metrics: " + err.getMessage()));
+
     }
-    catch (NumberFormatException e)
+    catch (Exception exception)
     {
       ctx.response().setStatusCode(400).end("Invalid time parameter");
-      return;
     }
 
-    provisionDB.getCPUMetricsLastN(sqlClient, discoveryName,minute)
-      .onSuccess(metrics -> ctx.response()
-        .putHeader("content-type", "application/json")
-        .end(metrics.encode()))
-      .onFailure(err -> ctx.response()
-        .setStatusCode(500)
-        .end("Error fetching memory metrics: " + err.getMessage()));
-
   }
-
 
 }

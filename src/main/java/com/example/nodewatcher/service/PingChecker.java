@@ -1,6 +1,7 @@
 package com.example.nodewatcher.service;
 
 import com.example.nodewatcher.utils.Address;
+import com.jcraft.jsch.JSch;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
@@ -18,7 +19,10 @@ public class PingChecker extends AbstractVerticle
   public void start()
   {
 
-    vertx.eventBus().<JsonObject>consumer(Address.PINGCHECK, this::handlePingRequest);
+    vertx.eventBus().<JsonObject>localConsumer(Address.PINGCHECK, this::handlePingRequest);
+
+    vertx.eventBus().<JsonObject>localConsumer(Address.SSHCHECK, this::handleSSHRequest);
+
 
   }
 
@@ -30,7 +34,6 @@ public class PingChecker extends AbstractVerticle
 
       onComplete(result->{
 
-        System.out.println("Ping promise completed "+result.result());
 
         if(result.succeeded())
         {
@@ -44,53 +47,99 @@ public class PingChecker extends AbstractVerticle
       });
 
   }
+  private void handleSSHRequest(Message<JsonObject> message)
+  {
+    var data = message.body();
+
+    var ip = data.getString("ip");
+
+    var password = data.getString("password");
+
+    var username = data.getString("username");
+
+    ssh(ip,username,password).onComplete(
+      authResult->{
+
+        if(authResult.succeeded())
+        {
+          message.reply("Discovered");
+        }
+        else
+          message.reply(authResult.cause());
+    });
+
+  }
 
   private Future<Boolean> ping(String ip)
   {
     var promise = Promise.<Boolean>promise();
 
-    var future = promise.future();
+    var processBuilder  = new ProcessBuilder("fping","-c","3",ip);
 
+    try
+    {
+      var process = processBuilder.start();
 
-    vertx.executeBlocking(
+      var reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
 
-      handler->{
+      String line;
 
-        var processBuilder  = new ProcessBuilder("fping","-c","3",ip);
+      var counts = 0;
 
+      while((line = reader.readLine())!=null)
+      {
 
-        try
-        {
-          var process = processBuilder.start();
+        if(line.contains("0% loss"))
+          counts++;
 
-          var reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+      }
+      if(counts==3)
+        promise.complete(true);
 
-          String line;
+      else
+        promise.fail("Device is Down!");
 
-          var counts = 0;
+    }
+    catch (IOException e)
+    {
 
-          while((line = reader.readLine())!=null)
-          {
+      promise.fail("Error in processbuilder!");
 
-            if(line.contains("0% loss"))
-              counts++;
+    }
 
-          }
-          if(counts==3)
-            promise.complete(true);
+    return promise.future();
 
-          else
-            promise.fail("Device is Down!");
+  }
 
-        }
-        catch (IOException e)
-        {
+  private Future<Boolean> ssh(String ip,String username,String password)
+  {
+    var promise = Promise.<Boolean>promise();
 
-          promise.fail("Error in processbuilder!");
+    try
+    {
+      var jsch = new JSch();
 
-        }
+      var session = jsch.getSession(username, ip, 22);
 
-      });
+      session.setTimeout(2000);
+
+      session.setPassword(password);
+
+      session.setConfig("StrictHostKeyChecking", "no");
+
+      session.connect();
+
+      System.out.println("Authenticaion Completed!");
+
+      promise.complete(true);
+
+      session.disconnect();
+
+    }
+    catch (Exception exception)
+    {
+        promise.fail("Authentication Error!");
+    }
 
     return promise.future();
 
