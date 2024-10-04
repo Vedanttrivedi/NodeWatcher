@@ -4,10 +4,10 @@ import com.example.nodewatcher.db.DiscoveryDB;
 import com.example.nodewatcher.service.PluginDataSaver;
 import com.example.nodewatcher.utils.Address;
 import io.vertx.core.AbstractVerticle;
-import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import io.vertx.core.eventbus.DeliveryOptions;
+import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
@@ -21,7 +21,9 @@ public class DiscoveryRoutes extends AbstractVerticle
 {
 
   private final Router router;
+
   private final DiscoveryDB discoveryDB;
+
   private static final org.slf4j.Logger logger = LoggerFactory.getLogger(PluginDataSaver.class);
 
   public DiscoveryRoutes(Router router, SqlClient databaseClient)
@@ -43,7 +45,7 @@ public class DiscoveryRoutes extends AbstractVerticle
     router.post("/discovery/create")
       .handler(TimeoutHandler.create(5000))
       .handler(BodyHandler.create())
-      .handler(this::createSSHDiscovery);
+      .handler(this::createDiscovery);
 
     router.get("/discovery/get/:name").handler(this::getDiscovery);
 
@@ -59,141 +61,157 @@ public class DiscoveryRoutes extends AbstractVerticle
 
   }
 
-  void findCredentialId(String credentialName, Promise<Integer> promise)
-  {
-    discoveryDB.findCredentialId(credentialName)
-      .onSuccess(promise::complete)
-      .onFailure(promise::fail);
-  }
   void findCredential(String credentialName, Promise<JsonObject> promise)
   {
-    discoveryDB.findCredential(credentialName)
-      .onSuccess(promise::complete)
-      .onFailure(promise::fail);
+    vertx.executeBlocking(findPromise->
+    {
+      discoveryDB.findCredential(credentialName)
+        .onComplete(findResult->{
+          if(findResult.succeeded())
+            findPromise.complete();
+          else
+            findResult.failed();
+      });
+
+    },findFuture->
+    {
+
+      if(findFuture.succeeded())
+        promise.complete();
+
+      else
+        promise.fail(findFuture.cause());
+    });
+
   }
-
-  void createDiscovery(RoutingContext context)
-  {
-
-    var ip = context.request().getFormAttribute("ip");
-
-    var name = context.request().getFormAttribute("name");
-
-    var credentialName = context.request().getFormAttribute("credential_name");
-
-    var data = new JsonObject().put("ip", ip).put("name", name);
-
-    Promise<Integer> credentialIdPromise = Promise.promise();
-
-    Promise<String> discoveryIpNamePromise = Promise.promise();
-
-    findCredentialId(credentialName, credentialIdPromise);
-
-    discoveryDB.sameIpAndDiscoveryNameExists(ip, name, discoveryIpNamePromise);
-
-    credentialIdPromise.future().compose(credentialId ->
-      discoveryIpNamePromise.future().compose(duplicateRow ->
-      {
-        if (duplicateRow.equals("Remove"))
-        {
-          context.response().end(duplicateRow);
-
-          return null;
-        }
-        else
-        {
-          vertx.eventBus().request(Address.SSHCHECK, data, reply ->
-          {
-            if (reply.succeeded())
-            {
-              context.response().end("<h1>" + reply.result().body() + ", Saved in DB. You can provision it later.</h1>");
-
-              logger.error("Discovery in reach ",reply.cause());
-
-            }
-            else
-            {
-              context.response().end("Device is Down");
-
-              logger.error("Discovery not in reach ",reply.cause());
-
-            }
-          });
-
-          return discoveryDB.createDiscovery(name, ip, credentialId);
-        }
-      })
-    ).onFailure(err -> context.response().setStatusCode(404).end(err.getMessage()));
-  }
-
 
   void getDiscovery(RoutingContext context)
   {
 
     var name = context.pathParam("name").trim();
 
-    discoveryDB.getDiscovery(name)
-      .onSuccess(discovery ->
-      {
-        if(discovery==null)
-        {
-          context.response().end("Discovery not found");
-          return;
-        }
-        //Once user is getting all the discovery he should be able to get the result whether device is reachable or not
-        vertx.eventBus().request(Address.PINGCHECK,discovery.toJson("Down"),reply->{
+    vertx.executeBlocking(promise->{
 
-          if(reply.succeeded())
+      discoveryDB.getDiscovery(name)
+        .onComplete(result->{
+
+          if(result.succeeded())
           {
-            context.response().putHeader("Content-Type", "application/json").end(discovery.toJson("Up").encodePrettily());
-
-          }
-          else
-          {
-            context.response().putHeader("Content-Type", "application/json").end(discovery.toJson("Down").encodePrettily());
-
+            if(result.result()==null)
+            {
+              promise.fail("Discovery does not exists");
+            }
+            else
+              promise.complete(result.result());
           }
         });
 
-      })
-      .onFailure(err -> context.response().setStatusCode(500).end("DB ERROR: " + err.getMessage()));
+    },future->{
+        if(future.succeeded())
+        {
+          var discovery = (JsonObject)future.result();
+
+          vertx.eventBus().request(Address.SSHCHECK,discovery,reply->{
+
+            if(reply.succeeded())
+            {
+
+              discovery.put("status","Up");
+
+              discovery.remove("password");
+
+              context.response().putHeader("Content-Type", "application/json").end(discovery.encodePrettily());
+
+            }
+            else
+            {
+              discovery.put("status","Down");
+
+              discovery.remove("password");
+
+              context.response().putHeader("Content-Type", "application/json").end(discovery.encodePrettily());
+
+            }
+          });
+        }
+        else
+          context.response().end("Discovery not found!");
+    });
 
   }
 
   // Handler to get all discoveries
   void getAllDiscovery(RoutingContext context)
   {
-    discoveryDB.getAllDiscoveries()
+    vertx.executeBlocking(promise->{
 
-      .onSuccess(response -> {
+      discoveryDB.getAllDiscoveries()
+        .onComplete(result->{
 
-        context.response().putHeader("Content-Type", "application/json").end(response.encodePrettily());
+          if(result.succeeded())
+            promise.complete(result.result());
+          else
+            promise.fail(result.cause());
 
-      })
-      .onFailure(err -> context.response().setStatusCode(500).end("Failed to fetch discoveries: " + err.getMessage()));
+        });
+    },future->{
 
+      if(future.succeeded())
+        context.response().end(((JsonArray)future.result()).encodePrettily());
+      else
+        context.response().end(future.cause().toString());
+    });
   }
 
   // Handler to update a discovery record
   void updateDiscovery(RoutingContext context)
   {
     var name = context.pathParam("name");
+
     var ip = context.request().getFormAttribute("ip");
 
-    discoveryDB.updateDiscovery(name, ip)
-      .onSuccess(success -> context.response().end("Discovery IP Updated for " + name))
-      .onFailure(err -> context.response().end("Discovery name not found!"));
+    vertx.executeBlocking(updatePromise->
+    {
+      discoveryDB.updateDiscovery(name, ip)
+        .onSuccess(success -> updatePromise.complete())
+        .onFailure(err -> updatePromise.fail("Discovery name not found!"));
+
+    },updateFuture->{
+
+      if(updateFuture.succeeded())
+        context.response().end("Discovery IP Updated for " + name);
+
+      else
+        context.response().end(updateFuture.cause().toString());
+    });
+
   }
 
   void deleteDiscovery(RoutingContext context)
   {
     var name = context.pathParam("name");
 
-    discoveryDB.deleteDiscovery(name)
-      .onSuccess(success -> context.response().setStatusCode(200).end("Discovery deleted successfully."))
+    vertx.executeBlocking(deletePromise->{
+      discoveryDB.deleteDiscovery(name)
+        .onSuccess(success ->{
+          System.out.println("Deleted "+success.toString());
 
-      .onFailure(err -> context.response().setStatusCode(500).end("Failed to delete discovery: " + err.getMessage()));
+          deletePromise.complete("Deletion Successful");
+        })
 
+        .onFailure(err -> {
+          System.out.println("Delete promise failed"+err.getCause());
+          deletePromise.fail(err.getCause());
+        });
+
+    },deleteFuture->
+    {
+      if(deleteFuture.succeeded())
+        context.response().end(deleteFuture.result().toString());
+
+      else
+        context.response().end(deleteFuture.cause().toString());
+    });
   }
 
   void provisionDiscovery(RoutingContext context)
@@ -212,55 +230,65 @@ public class DiscoveryRoutes extends AbstractVerticle
     try
     {
       var doProvision = Integer.valueOf(status) ==1;
-      discoveryDB.provisionDiscovery(name,doProvision)
 
-        .onSuccess(success ->
-        {
+      vertx.executeBlocking(promise->{
 
-          if(success.rowCount()!=0)
+        discoveryDB.provisionDiscovery(name,doProvision)
+
+          .onSuccess(success ->
           {
-            context.response().end("Discovery Provision Status Updated ");
 
-            var discoveryAndCredentialBody = new JsonObject();
+            if(success.size()!=0 || success.rowCount()!=0)
+            {
+              context.response().end("Discovery Provision Status Updated ");
 
-            discoveryDB.getDiscoveryAndCredentialByDiscoveryName(name)
+              var discoveryAndCredentialBody = new JsonObject();
 
-              .onSuccess(
+              discoveryDB.getDiscoveryAndCredentialByDiscoveryName(name)
 
-                rowResult->{
+                .onSuccess(
 
-                  discoveryAndCredentialBody.put("username",rowResult.iterator().next().getString(0));
+                  rowResult->{
 
-                  discoveryAndCredentialBody.put("password",rowResult.iterator().next().getString(1));
+                    discoveryAndCredentialBody.put("username",rowResult.iterator().next().getString(0));
 
-                  discoveryAndCredentialBody.put("ip",rowResult.iterator().next().getString(2));
+                    discoveryAndCredentialBody.put("password",rowResult.iterator().next().getString(1));
 
-                  discoveryAndCredentialBody.put("name",rowResult.iterator().next().getString(3));
+                    discoveryAndCredentialBody.put("ip",rowResult.iterator().next().getString(2));
 
-                  discoveryAndCredentialBody.put("doPolling",doProvision);
+                    discoveryAndCredentialBody.put("name",rowResult.iterator().next().getString(3));
 
-                  System.out.println("About to send "+discoveryAndCredentialBody);
+                    discoveryAndCredentialBody.put("doPolling",doProvision);
 
-                  vertx.eventBus().send(Address.PLUGIN_DATA_SENDER,discoveryAndCredentialBody);
+                    vertx.eventBus().send(Address.PLUGIN_DATA_SENDER,discoveryAndCredentialBody);
 
-                  System.out.println("Row Updation Result "+rowResult.rowCount()+"\t"+rowResult.size()+"\t Do Provision Result "+doProvision);
+                  })
 
-                })
+                .onFailure(failureHandler->{
+                    promise.fail("DB Error");
 
-              .onFailure(failureHandler->{
+                });
 
-                System.out.println("Error While Fetching discovery with other options ");
+            }
+            else
+            {
+              if(doProvision)
+                promise.fail("It is already in provision state");
+              else
+                promise.fail("It is already not in the provision state");
+            }
 
-                context.response().end(failureHandler.getCause().toString());
+          })
+          .onFailure(err -> promise.fail("Not in the provision state "));
 
-              });
-
+      },future->{
+          if(future.succeeded())
+          {
+            context.response().end(future.result().toString());
           }
           else
-            context.response().end("Discovery does not exists");
-
-        })
-        .onFailure(err -> context.response().end("Not in the provision state " + err.getMessage()));
+            context.response().end(future.cause().toString());
+      });
 
     }
 
@@ -272,63 +300,77 @@ public class DiscoveryRoutes extends AbstractVerticle
     }
 
   }
-
-  void createSSHDiscovery(RoutingContext context)
+  void createDiscovery(RoutingContext context)
   {
+    try
+    {
 
-    var ip = context.request().getFormAttribute("ip");
+      var ip = context.request().getFormAttribute("ip");
 
-    var name = context.request().getFormAttribute("name");
+      var name = context.request().getFormAttribute("name");
 
-    var credentialName = context.request().getFormAttribute("credential_name");
+      var credentialName = context.request().getFormAttribute("credential_name");
 
-    Promise<JsonObject> credentialPromise = Promise.promise();
+      vertx.executeBlocking(promise -> {
 
-    Promise<String> discoveryIpNamePromise = Promise.promise();
+        discoveryDB.findCredential(credentialName).compose(credential -> {
 
-    findCredential(credentialName, credentialPromise);
+            if (credential == null) {
+              promise.fail("Credential not found");
+              return Future.failedFuture("Credential not found");
+            }
 
-    discoveryDB.sameIpAndDiscoveryNameExists(ip, name, discoveryIpNamePromise);
+            credential.put("ip", ip);
+            return vertx.eventBus().<JsonObject>request(Address.SSHCHECK, credential,new DeliveryOptions().setSendTimeout(4000))
+              .map(reply -> new JsonObject().put("credential", credential).put("sshReply", reply.body()));
 
-    credentialPromise.future().compose(credential ->
-      discoveryIpNamePromise.future().compose(duplicateRow ->
-      {
-        if (duplicateRow.equals("Remove"))
+          }).compose(result -> {
+
+            var credential = result.getJsonObject("credential");
+
+            var sshReply = result.getString("sshReply");
+
+            return discoveryDB.sameIpAndDiscoveryNameExists(ip, name).compose(duplicateRow -> {
+
+              String finalMessage;
+              if (duplicateRow.equals("Present"))
+              {
+                finalMessage = sshReply + " - Discovery with same IP or Name already present!";
+
+                promise.complete(finalMessage);  // Stop here if duplicate is found
+
+                return Future.failedFuture("duplicate data entry");
+              }
+              else
+              {
+                // Save the discovery if no duplicate exists
+                finalMessage = sshReply + " - Saved in DB. You can provision it later.";
+
+                return discoveryDB.createDiscovery(name, ip, credential.getInteger("id")).map(v -> finalMessage);
+              }
+
+            });
+
+          }).onSuccess(result -> promise.complete(result))
+
+          .onFailure(err -> promise.fail(err.getMessage()));
+
+      }, res -> {
+        if (res.succeeded())
         {
-          context.response().end("Discovery with same Ip or Name already present!");
-
-          return Future.failedFuture("duplicate data entry");
-
+          context.response().end("<h1>" + res.result() + "</h1>");
         }
         else
         {
-          credential.put("ip",ip);
-
-          System.out.println("Credential Object Created !");
-
-          vertx.eventBus().request(Address.SSHCHECK, credential, reply ->
-          {
-            if (reply.succeeded())
-            {
-              context.response().end("<h1>" + reply.result().body() + ", Saved in DB. You can provision it later.</h1>");
-
-              logger.error("Discovery in reach ",reply.cause());
-
-            }
-            else
-            {
-              context.response().end("Device is Down");
-
-              logger.error("Discovery not in reach ",reply.cause());
-
-            }
-          });
-
-          return discoveryDB.createDiscovery(name, ip, credential.getInteger("id"));
-
+          context.response().setStatusCode(404).end(res.cause().getMessage());
         }
-      })
-    ).onFailure(err -> context.response().setStatusCode(404).end(err.getMessage()));
+      });
+    }
+    catch (Exception exception)
+    {
+
+    }
   }
+
 
 }

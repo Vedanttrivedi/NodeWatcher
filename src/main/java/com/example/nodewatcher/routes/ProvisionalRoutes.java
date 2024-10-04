@@ -1,16 +1,34 @@
 package com.example.nodewatcher.routes;
 
 import com.example.nodewatcher.db.MetricDB;
+import io.vertx.core.AbstractVerticle;
+import io.vertx.core.Promise;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.sqlclient.SqlClient;
 
-public class ProvisionalRoutes
+public class ProvisionalRoutes extends AbstractVerticle
 {
 
-  private static final MetricDB provisionDB = new MetricDB();
+  private final MetricDB provisionDB = new MetricDB();
+  private Router router;
+  private SqlClient sqlClient;
 
-  public static void attach(Router router, SqlClient sqlClient)
+  public ProvisionalRoutes(Router router, SqlClient sqlClient)
+  {
+    this.router = router;
+    this.sqlClient = sqlClient;
+  }
+
+  @Override
+  public void start(Promise<Void> startPromise) throws Exception
+  {
+    super.start(startPromise);
+
+    attach();
+  }
+
+  public void attach()
   {
     router.get("/discovery/memory/:discoveryName")
       .handler(ctx -> getMemoryMetrics(ctx, sqlClient));
@@ -26,22 +44,30 @@ public class ProvisionalRoutes
 
   }
 
-  private static void getMemoryMetrics(RoutingContext ctx, SqlClient sqlClient)
+  private void getMemoryMetrics(RoutingContext ctx, SqlClient sqlClient)
   {
     var discoveryName = ctx.pathParam("discoveryName");
 
-    provisionDB.getMemoryMetrics(sqlClient, discoveryName)
-      .onSuccess(metrics -> ctx.response()
-        .putHeader("content-type", "application/json")
-        .end(metrics.encode()))
+    vertx.executeBlocking(promise ->
+    {
+      provisionDB.getMemoryMetrics(sqlClient, discoveryName)
+        .onSuccess(metrics -> promise.complete(metrics.encodePrettily()))
 
-      .onFailure(err -> ctx.response()
-        .setStatusCode(500)
-        .end("Error fetching memory metrics: " + err.getMessage()));
+        .onFailure(err -> promise.fail("Error while fetching data "));
+
+    }, future ->
+    {
+
+      if (future.succeeded())
+        ctx.response().end(future.result().toString());
+      else
+        ctx.response().end(future.cause().getMessage());
+
+    });
 
   }
 
-  private static void getMemoryMetricsLastN(RoutingContext ctx, SqlClient sqlClient)
+  private void getMemoryMetricsLastN(RoutingContext ctx, SqlClient sqlClient)
   {
 
     try
@@ -51,14 +77,24 @@ public class ProvisionalRoutes
 
       var n = ctx.pathParam("n");
 
-      provisionDB.getMemoryMetricsLastN(sqlClient, discoveryName,Integer.parseInt(n))
-        .onSuccess(metrics -> ctx.response()
-          .putHeader("content-type", "application/json")
-          .end(metrics.encode()))
-        .onFailure(err -> ctx.response()
-          .setStatusCode(500)
-          .end("Error fetching memory metrics: " + err.getMessage()));
+      vertx.executeBlocking(promise ->
+      {
 
+        provisionDB.getMemoryMetricsLastN(sqlClient, discoveryName, Integer.parseInt(n))
+          .onSuccess(metrics -> promise.complete(metrics.encodePrettily()))
+          .onFailure(err -> promise.fail(err.getMessage()));
+
+
+      }, future ->
+      {
+
+        if (future.succeeded())
+          ctx.response().end(future.result().toString());
+
+        else
+          ctx.response().end(future.cause().toString());
+
+      });
     }
 
     catch (Exception exception)
@@ -67,44 +103,64 @@ public class ProvisionalRoutes
     }
 
   }
-  private static void getCPUMetrics(RoutingContext ctx, SqlClient sqlClient)
+
+  private void getCPUMetrics(RoutingContext ctx, SqlClient sqlClient)
   {
     var discoveryName = ctx.pathParam("discoveryName");
 
-    provisionDB.getCPUMetrics(sqlClient, discoveryName)
-      .onSuccess(metrics -> ctx.response()
-        .putHeader("content-type", "application/json")
-        .end(metrics.encodePrettily()))
+    vertx.executeBlocking(promise ->
+    {
+      provisionDB.getCPUMetrics(sqlClient, discoveryName)
 
-      .onFailure(err -> ctx.response()
-        .setStatusCode(500)
-        .end("Error fetching memory metrics: " + err.getMessage()));
+        .onSuccess(metrics -> promise.complete(metrics.encodePrettily()))
 
+        .onFailure(err -> promise.fail("Error while fetching data "));
+
+    }, future ->
+    {
+
+      if (future.succeeded())
+        ctx.response().end(future.result().toString());
+      else
+        ctx.response().end(future.cause().getMessage());
+
+    });
   }
 
-  private static void getCPUMetricsLastN(RoutingContext ctx, SqlClient sqlClient)
+  private void getCPUMetricsLastN(RoutingContext ctx, SqlClient sqlClient)
   {
 
     try
     {
+
       var discoveryName = ctx.pathParam("discoveryName");
 
       var n = ctx.pathParam("n");
 
-      provisionDB.getCPUMetricsLastN(sqlClient, discoveryName,Integer.parseInt(n))
-        .onSuccess(metrics -> ctx.response()
-          .putHeader("content-type", "application/json")
-          .end(metrics.encode()))
-        .onFailure(err -> ctx.response()
-          .setStatusCode(500)
-          .end("Error fetching memory metrics: " + err.getMessage()));
+      vertx.executeBlocking(promise ->
+      {
 
+        provisionDB.getCPUMetricsLastN(sqlClient, discoveryName, Integer.parseInt(n))
+          .onSuccess(metrics -> promise.complete(metrics.encodePrettily()))
+          .onFailure(err -> promise.fail(err.getMessage()));
+
+
+      }, future ->
+      {
+
+        if (future.succeeded())
+          ctx.response().end(future.result().toString());
+
+        else
+          ctx.response().end(future.cause().toString());
+
+      });
     }
+
     catch (Exception exception)
     {
       ctx.response().setStatusCode(400).end("Invalid time parameter");
     }
 
   }
-
 }

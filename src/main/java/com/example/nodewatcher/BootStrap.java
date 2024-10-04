@@ -2,77 +2,59 @@ package com.example.nodewatcher;
 
 import com.example.nodewatcher.db.DatabaseClient;
 import com.example.nodewatcher.service.*;
-import com.example.nodewatcher.utils.Config;
 import io.vertx.core.*;
-import io.vertx.mysqlclient.MySQLPool;
+import org.slf4j.LoggerFactory;
 import org.zeromq.ZContext;
-
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 public class BootStrap
 {
-  private static final Logger LOGGER = Logger.getLogger(BootStrap.class.getName());
+  private static final org.slf4j.Logger log = LoggerFactory.getLogger(BootStrap.class);
 
   public static void main(String[] args)
   {
 
-    var vertx = Vertx.vertx(
-
-      new VertxOptions()
-
-        .setMaxWorkerExecuteTime(Config.WORKER_THREAD_MAX_EXECUTION_TIME)
-
-        .setMaxWorkerExecuteTimeUnit(Config.TIME_UNIT)
-    );
+    var vertx = Vertx.vertx();
 
     var databaseClient = DatabaseClient.getClient(vertx);
 
     var context = new ZContext();
 
-    deployInitialVerticles(vertx, databaseClient, context)
+    vertx.deployVerticle(new HostReachabilityChecker())
+    .compose(deploymentId->vertx.deployVerticle(new Client(databaseClient)))
+    .onComplete(deploymentResult->{
+        if(deploymentResult.failed())
+        {
+          log.error("Deployment Failed");
+        }
+      });
 
-      .onComplete(deploymentResult ->
-      {
-          if (deploymentResult.succeeded())
-          {
-            Thread pluginDataReceiverThread = new PluginDataReceiver(context,vertx);
+    vertx.deployVerticle(new PluginInitializer(databaseClient))
+      .onComplete(deploymentResult->{
+        if(deploymentResult.succeeded())
+        {
+          log.error("Deployment Failed");
 
-            pluginDataReceiverThread.start();
+          var pluginDataReceiverThread = new PluginDataReceiver(context,vertx);
 
-            vertx.deployVerticle(new PluginDataSaver(databaseClient),
+          pluginDataReceiverThread.start();
+
+          vertx.deployVerticle(new PluginDataSaver(databaseClient),
+
             dataSaverResult->{
 
-              if(dataSaverResult.succeeded())
-                System.out.println("Data Saver Deployed");
-              else
-              {
-                vertx.close();
-              }
+              if(dataSaverResult.failed())
+                System.out.println("Failed to Deploy Data saver!");
+
             });
+        }
+      });
 
-          }
-          else
-          {
-            LOGGER.log(Level.SEVERE, "Failed to deploy verticals", deploymentResult.cause());
-          }
+      vertx.eventBus().localConsumer("close",handler->{
 
-        });
+        System.out.println("Closing the application ");
+
+        System.exit(1);
+
+      });
     }
-
-  private static Future<Void> deployInitialVerticles(Vertx vertx, MySQLPool databaseClient, ZContext context)
-  {
-    return Future.all
-      (
-      vertx.deployVerticle(new Client(databaseClient)),
-
-      vertx.deployVerticle(new PingChecker(),new DeploymentOptions().setThreadingModel(ThreadingModel.WORKER)),
-
-      vertx.deployVerticle(
-        new PluginDataSender(databaseClient, context))
-      ).
-
-      mapEmpty();
-  }
-
 }

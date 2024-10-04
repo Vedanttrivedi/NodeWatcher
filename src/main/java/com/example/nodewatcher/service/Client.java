@@ -29,11 +29,13 @@ public class Client extends AbstractVerticle
 
     Router router = Router.router(vertx);
 
-    CredentialsRoutes.attach(router,sqlClient);
 
-    ProvisionalRoutes.attach(router, sqlClient);
+
+    vertx.deployVerticle(new CredentialsRoutes(router,sqlClient));
 
     vertx.deployVerticle(new DiscoveryRoutes(router,sqlClient));
+
+    vertx.deployVerticle(new ProvisionalRoutes(router,sqlClient));
 
     ErrorRoutes.attach(router);
 

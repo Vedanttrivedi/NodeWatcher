@@ -13,7 +13,7 @@ public class ErrorRoutes
 
     });
 
-    router.errorHandler(400,pageNotFoundHandler->{
+    router.errorHandler(405,pageNotFoundHandler->{
 
       pageNotFoundHandler.response().end("Something went wrong! Request Type might be wrong! ");
 

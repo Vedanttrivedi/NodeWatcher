@@ -1,14 +1,18 @@
 package com.example.nodewatcher.db;
 
 import com.example.nodewatcher.models.Discovery;
+import com.example.nodewatcher.utils.Config;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
+import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.sqlclient.Row;
 import io.vertx.sqlclient.RowSet;
 import io.vertx.sqlclient.SqlClient;
 import io.vertx.sqlclient.Tuple;
+
+import java.util.concurrent.ConcurrentHashMap;
 
 public class DiscoveryDB
 {
@@ -52,7 +56,9 @@ public class DiscoveryDB
 
           var username = rows.iterator().next().getString(1);
 
-          var password = rows.iterator().next().getString(2);
+          var password = Config.decrypt(rows.iterator().next().getString(2));
+
+          System.out.println("Decrypted password "+password);
 
           var payLoad = new JsonObject();
           payLoad.put("id",credentialId);
@@ -71,12 +77,6 @@ public class DiscoveryDB
     return promise.future();
   }
 
-  public Future<Void> createDiscovery(String name, String ip, int credentialId) {
-    return sqlClient.preparedQuery("INSERT INTO Discovery (name, ip, credentialID) VALUES (?, ?, ?)")
-      .execute(Tuple.of(name, ip, credentialId))
-      .mapEmpty();
-  }
-
   public Future<RowSet<Row>> getDiscoveryAndCredentialByDiscoveryName(String discoveryName)
   {
 
@@ -87,9 +87,10 @@ public class DiscoveryDB
   }
 
 
-  public Future<Discovery> getDiscovery(String name)
+  public Future<JsonObject> getDiscovery(String name)
   {
-    return sqlClient.preparedQuery("SELECT * FROM Discovery WHERE name = ?")
+    return sqlClient.preparedQuery("select d.name,d.ip,c.username,c.password from Discovery d " +
+        "join Credentials c ON c.id = d.credentialID where d.name = ?")
       .execute(Tuple.of(name))
       .map(rows ->
       {
@@ -97,8 +98,18 @@ public class DiscoveryDB
         {
           var row = rows.iterator().next();
 
-          return new Discovery(row.getInteger("id"), row.getString("name"), row.getInteger("credentialID"),row.getString("ip"),
-            row.getBoolean("is_provisioned"), row.getLocalDateTime("created_at").toString());
+          var data = new JsonObject();
+
+          data.put("name",row.getString("name"));
+
+          data.put("ip",row.getString("ip"));
+
+          data.put("username",row.getString("username"));
+
+
+          data.put("password",row.getString("password"));
+
+          return data;
         }
 
         return null;
@@ -106,9 +117,11 @@ public class DiscoveryDB
       });
   }
 
+
   public Future<JsonArray> getAllDiscoveries()
   {
-    return sqlClient.query("SELECT * FROM Discovery")
+    return sqlClient.query("SELECT d.name,d.ip,c.username FROM Discovery d " +
+        "JOIN Credentials c ON d.credentialID = c.id")
       .execute()
       .map(rows -> {
 
@@ -116,9 +129,16 @@ public class DiscoveryDB
 
         rows.forEach(row ->
         {
+          var data = new JsonObject();
 
-          var discovery = new Discovery(row.getInteger("id"), row.getString("name"), row.getInteger("credentialID"),row.getString("ip"),
-            row.getBoolean("is_provisioned"), row.getLocalDateTime("created_at").toString());
+          data.put("name",row.getString(0));
+
+          data.put("ip",row.getString(1));
+
+          data.put("username",row.getString(2));
+
+
+          response.add(data);
 
         });
         return response;
@@ -127,48 +147,56 @@ public class DiscoveryDB
 
   public Future<Void> updateDiscovery(String name, String ip)
   {
-    return sqlClient.preparedQuery("UPDATE Discovery SET ip = ? WHERE name = ?")
+    return sqlClient.preparedQuery("UPDATE Discovery SET ip = ? WHERE name = ? ")
       .execute(Tuple.of(ip, name))
       .mapEmpty();
   }
 
   public Future<Void> deleteDiscovery(String name)
   {
-    return sqlClient.preparedQuery("DELETE FROM Discovery WHERE name = ?")
+    System.out.println("Deleting "+name);
+    return sqlClient.preparedQuery("DELETE FROM Discovery WHERE name = ? ")
       .execute(Tuple.of(name))
       .mapEmpty();
   }
 
   public Future<RowSet<Row>>provisionDiscovery(String name,boolean status)
   {
-    if(status==false)
+    if(!status)
     {
       return sqlClient.preparedQuery("UPDATE Discovery SET is_provisioned = ? WHERE name = ? AND is_provisioned = ?")
-        .execute(Tuple.of(status,name,1));
+        .execute(Tuple.of(false,name,1));
     }
     else
     {
       return sqlClient.preparedQuery("UPDATE Discovery SET is_provisioned = ? WHERE name = ? AND is_provisioned = ?")
-        .execute(Tuple.of(status,name,0));
+        .execute(Tuple.of(true,name,0));
     }
   }
-
-  public Future<Void> sameIpAndDiscoveryNameExists(String ip, String name, Promise<String> discoveryIpNamePromise)
+  public Future<JsonObject> findCredentials(String credentialName)
   {
-
-    return sqlClient.preparedQuery("SELECT * FROM Discovery WHERE name = ? OR ip = ?")
-      .execute(Tuple.of(name, ip))
-      .onSuccess(rows ->
-      {
-        if(rows.rowCount()==0 && rows.size()==0)
-          discoveryIpNamePromise.complete("Add");
-        else
-          discoveryIpNamePromise.complete("Remove");
-      })
-      .onFailure(failureHandler->{
-
-        discoveryIpNamePromise.fail(failureHandler.getCause());
-
-      }).mapEmpty();
+    return sqlClient.preparedQuery("SELECT * FROM Credentials WHERE name = ?")
+      .execute(Tuple.of(credentialName))
+      .map(rows -> {
+        if (rows.size() > 0) {
+          return rows.iterator().next().toJson();
+        }
+        return null;
+      });
   }
+
+  public Future<String> sameIpAndDiscoveryNameExists(String ip, String name)
+  {
+    return sqlClient.preparedQuery("SELECT 1 FROM Discovery WHERE ip = ? OR name = ?")
+      .execute(Tuple.of(ip, name))
+      .map(rows -> rows.size() > 0 ? "Present" : "Not Present");
+  }
+
+  public Future<Void> createDiscovery(String name, String ip, int credentialId)
+  {
+    return sqlClient.preparedQuery("INSERT INTO Discovery (name, ip, credentialID) VALUES (?, ?, ?)")
+      .execute(Tuple.of(name, ip, credentialId))
+      .mapEmpty();  // No return value required on success
+  }
+
 }

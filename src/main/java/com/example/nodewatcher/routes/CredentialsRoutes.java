@@ -1,24 +1,51 @@
 package com.example.nodewatcher.routes;
 
 import com.example.nodewatcher.db.CredentialDB;
+import com.example.nodewatcher.db.DiscoveryDB;
 import com.example.nodewatcher.models.Credential;
+import com.example.nodewatcher.service.PluginDataSaver;
+import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Future;
+import io.vertx.core.Promise;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.BodyHandler;
 import io.vertx.ext.web.handler.TimeoutHandler;
-import io.vertx.mysqlclient.MySQLPool;
 import io.vertx.sqlclient.SqlClient;
-import java.time.LocalDateTime;
-import java.util.Base64;
+import org.slf4j.LoggerFactory;
 
-public class CredentialsRoutes
+import java.time.LocalDateTime;
+import java.util.AbstractCollection;
+
+public class CredentialsRoutes extends AbstractVerticle
 {
 
-  static CredentialDB credentialDB = new CredentialDB();
+  private final CredentialDB credentialDB = new CredentialDB();
 
-  public static void attach(Router router, SqlClient sqlClient)
+  private final Router router;
+
+  private SqlClient sqlClient;
+
+  private static final org.slf4j.Logger logger = LoggerFactory.getLogger(PluginDataSaver.class);
+
+  public CredentialsRoutes(Router router,SqlClient sqlClient)
+  {
+    this.router = router;
+
+    this.sqlClient = sqlClient;
+  }
+
+  @Override
+  public void start(Promise<Void> startPromise) throws Exception
+  {
+    attach();
+
+    startPromise.complete();
+
+  }
+
+  public void attach()
   {
 
     router.post("/credential/create")
@@ -50,7 +77,7 @@ public class CredentialsRoutes
   }
 
 
-  static void createCredential(RoutingContext context, SqlClient sqlClient)
+  private void createCredential(RoutingContext context, SqlClient sqlClient)
   {
 
     var name = context.request().getFormAttribute("name");
@@ -76,28 +103,32 @@ public class CredentialsRoutes
       return;
     }
 
-    Future<Void> result = credentialDB.save(sqlClient,
-      new Credential(name, username, password, LocalDateTime.now().toString(), 1));
+    vertx.executeBlocking(promise->{
 
-    result.onSuccess(queryResult -> {
+      credentialDB.save(sqlClient,
+        new Credential(name, username, password, LocalDateTime.now().toString(), 1))
 
-        context.response().end("<h1 Credentials added</h1>");
+        .onSuccess(success->{
 
-      }).
-      onFailure(queryFailure ->
-      {
+          promise.complete();
 
-        if (result.cause().getLocalizedMessage().contains("Duplicate"))
-          context.response().end("<h1> Duplicate Entry For Credential Name </h1>");
+        })
+        .onFailure(failure->{
 
-        else
-          context.response().end("<h1> " + result.cause().getLocalizedMessage() + "</h1>");
+          promise.fail("Credentials already present ");
+        });
 
-      });
+    },future->{
+
+      if(future.succeeded())
+        context.response().end("Credentials Added");
+      else
+        context.response().end(future.cause().toString());
+    });
 
   }
 
-  static void getCredential(RoutingContext context, SqlClient sqlClient)
+  private void getCredential(RoutingContext context, SqlClient sqlClient)
   {
     var name = context.pathParam("name").trim();
 
@@ -106,42 +137,57 @@ public class CredentialsRoutes
 
     System.out.println("For Param " + name);
 
-    Future<JsonObject> getResult = credentialDB.getCredential(sqlClient, name);
+    vertx.executeBlocking(promise->{
 
-    getResult.onFailure(failureHandler -> {
+      credentialDB.getCredential(sqlClient, name)
+        .onFailure(failureHandler -> {
 
-        context.response().end("Credentials Not Found " + failureHandler.getMessage());
+          promise.fail(failureHandler.getCause().toString());
 
-      }).
-      onSuccess(successHandler -> {
+        }).
+        onSuccess(successHandler -> {
 
-        context.response().end(successHandler.encodePrettily());
+          promise.complete(successHandler.encodePrettily());
 
-      });
+        });
 
+    },future->{
+
+      if(future.failed())
+        context.response().end(future.cause().toString());
+      else
+        context.response().end(future.result().toString());
+
+    });
   }
 
   // Method to retrieve all credentials
-  static void getAllCredential(RoutingContext context, SqlClient sqlClient)
+  private void getAllCredential(RoutingContext context, SqlClient sqlClient)
   {
+    vertx.executeBlocking(promise->{
 
+      credentialDB.getCredential(sqlClient)
 
-    credentialDB.getCredential(sqlClient)
+        .onFailure(failureHandler ->
+        {
+          promise.fail(failureHandler.getCause().toString());
+        })
+        .onSuccess(successHandler -> {
+          promise.complete(successHandler.encodePrettily());
+        });
 
-      .onFailure(failureHandler -> {
+    },future->{
 
-        context.response().end("Something went wrong! " + failureHandler.getLocalizedMessage());
+      if(future.failed())
+        context.response().end("Something went wrong! " + future.cause().toString());
+      else
+        context.response().end(future.result().toString());
 
-      })
-      .onSuccess(successHandler -> {
-
-        context.response().end(successHandler.encodePrettily());
-
-      });
+    });
   }
 
   // Method to update a credential by name
-  static void updateCredential(RoutingContext context, SqlClient sqlClient) {
+  private void updateCredential(RoutingContext context, SqlClient sqlClient) {
 
     var name = context.pathParam("name");
 
@@ -156,8 +202,6 @@ public class CredentialsRoutes
 
     if (password.length() < 8)
       context.response().end("password length must be 8 characters");
-
-    var protocol = 1;
 
     credentialDB.updateCredential(sqlClient, name,
         new Credential(newName, username, password, LocalDateTime.now().toString(), 1))
@@ -175,26 +219,39 @@ public class CredentialsRoutes
 
   }
 
-  static void deleteCredential(RoutingContext context, SqlClient sqlClient) {
+  private void deleteCredential(RoutingContext context, SqlClient sqlClient)
+  {
 
     var name = context.pathParam("name");
 
-    credentialDB.deleteCredential(sqlClient, name)
+    vertx.executeBlocking(promise->{
 
-      .onSuccess(successHandler -> {
+      credentialDB.deleteCredential(sqlClient, name)
 
-        System.out.println("Success Result : " + successHandler);
+        .onSuccess(successHandler -> {
 
-        context.response().end("Credential Deleted ");
-      })
+          System.out.println("Success Result : " + successHandler);
 
-      .onFailure(failureHandler -> {
+          promise.complete("Credential Deleted ");
+        })
 
-        System.out.println("failure Result " + failureHandler.getMessage());
+        .onFailure(failureHandler -> {
 
-        context.response().end("Credential not found!");
+          System.out.println("failure Result " + failureHandler.getMessage());
 
-      });
+          promise.fail("Credential not found!");
+
+        });
+
+    },future->{
+
+      if(future.failed())
+      {
+        context.response().end(future.cause().toString());
+      }
+      else
+        context.response().end(future.result().toString());
+    });
   }
 
 }

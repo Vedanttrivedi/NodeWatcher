@@ -2,6 +2,7 @@ package com.example.nodewatcher.db;
 
 import com.example.nodewatcher.models.Credential;
 import com.example.nodewatcher.utils.Address;
+import com.example.nodewatcher.utils.Config;
 import io.vertx.core.json.JsonArray;
 import io.vertx.sqlclient.SqlClient;
 import io.vertx.sqlclient.Tuple;
@@ -23,56 +24,20 @@ public class CredentialDB
   {
     String query = "INSERT INTO Credentials (name, username, password, protocol) VALUES (?, ?, ?, ?)";
 
-    var secretKey = generateKey();
+    var secretKey = Config.generateKey();
 
-
-
+//    String encryptedPassword;
+//
 //    if(secretKey!=null)
-//      encryptedPassword = encrypt(credential.password(),secretKey);
+//      encryptedPassword = Config.encrypt(credential.password());
 //    else
-    var  encryptedPassword = credential.password();
+//      encryptedPassword = credential.password();
 
     return sqlClient.preparedQuery(query)
-      .execute(Tuple.of(credential.name(), credential.username(), encryptedPassword, credential.protocol()))
-      .mapEmpty();  // Return a Future that completes when operation succeeds
+      .execute(Tuple.of(credential.name(), credential.username(), credential.password(), credential.protocol()))
+      .mapEmpty();
 
   }
-  public static SecretKey generateKey()
-  {
-    try
-    {
-      KeyGenerator keyGenerator = KeyGenerator.getInstance("AES");
-
-      keyGenerator.init(128);
-
-      return keyGenerator.generateKey();
-
-    }
-    catch (Exception exception)
-    {
-      return  null;
-    }
-  }
-
-  public static String encrypt(String data, SecretKey secretKey)
-  {
-    try
-    {
-      Cipher cipher = Cipher.getInstance("AES");
-
-      cipher.init(Cipher.ENCRYPT_MODE, secretKey);
-
-      byte[] encryptedBytes = cipher.doFinal(data.getBytes());
-
-      return Base64.getEncoder().encodeToString(encryptedBytes);
-
-    }
-    catch (Exception exception)
-    {
-      return data;
-    }
-  }
-
 
   public Future<JsonObject> getCredential(SqlClient sqlClient, String name)
   {

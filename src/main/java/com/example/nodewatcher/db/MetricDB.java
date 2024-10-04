@@ -3,6 +3,7 @@ package com.example.nodewatcher.db;
 import com.example.nodewatcher.models.Cpu_Metric;
 import com.example.nodewatcher.models.Memory_Metric;
 import io.vertx.core.Future;
+import io.vertx.core.Promise;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
@@ -13,8 +14,9 @@ import java.sql.Timestamp;
 
 public class MetricDB
 {
-  public static void saveMemory(SqlClient sqlClient, Memory_Metric memoryMetric, Timestamp timestamp)
+  public static Future<Boolean> saveMemory(SqlClient sqlClient, Memory_Metric memoryMetric, Timestamp timestamp)
   {
+    Promise<Boolean> promise = Promise.promise();
 
     var discoveryIp = memoryMetric.getIp();
 
@@ -42,24 +44,23 @@ public class MetricDB
                 if(result.succeeded())
                 {
                   //System.out.println("Rows Added in db ");
-
+                  promise.complete();
                 }
                 else
                 {
                   System.out.println("Failed while adding rows "+result.result());
+                  promise.fail(result.cause());
                 }
 
-                }).onFailure(failure->{
-
-                System.out.println("Failed last "+failure.getMessage());
-              });
+                });
           });
         }
       });
-
+    return  promise.future();
   }
-  public static void saveCpu(SqlClient sqlClient, Cpu_Metric cpuMetric, Timestamp timestamp)
+  public static Future<Boolean> saveCpu(SqlClient sqlClient, Cpu_Metric cpuMetric, Timestamp timestamp)
   {
+    Promise<Boolean> promise = Promise.promise();
 
     var discoveryIp = cpuMetric.getIp();
 
@@ -87,11 +88,12 @@ public class MetricDB
                 if(result.succeeded())
                 {
                   //System.out.println("Rows Added in CPU DB ");
-
+                  promise.complete();
                 }
                 else
                 {
                   System.out.println("Failed while adding rows "+result.result());
+                  promise.fail(result.cause());
                 }
 
               }).onFailure(failure->{
@@ -101,7 +103,7 @@ public class MetricDB
           });
         }
       });
-
+    return promise.future();
   }
 
   public Future<JsonArray> getMemoryMetrics(SqlClient sqlClient, String discoveryName)
