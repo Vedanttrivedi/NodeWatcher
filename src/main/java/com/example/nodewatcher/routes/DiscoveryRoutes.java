@@ -3,6 +3,7 @@ package com.example.nodewatcher.routes;
 import com.example.nodewatcher.db.DiscoveryDB;
 import com.example.nodewatcher.service.PluginDataSaver;
 import com.example.nodewatcher.utils.Address;
+import com.example.nodewatcher.utils.Config;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
@@ -15,6 +16,9 @@ import io.vertx.ext.web.handler.BodyHandler;
 import io.vertx.ext.web.handler.TimeoutHandler;
 import io.vertx.sqlclient.SqlClient;
 import org.slf4j.LoggerFactory;
+
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 
 public class DiscoveryRoutes extends AbstractVerticle
@@ -194,14 +198,13 @@ public class DiscoveryRoutes extends AbstractVerticle
     vertx.executeBlocking(deletePromise->{
       discoveryDB.deleteDiscovery(name)
         .onSuccess(success ->{
-          System.out.println("Deleted "+success.toString());
 
           deletePromise.complete("Deletion Successful");
         })
 
         .onFailure(err -> {
           System.out.println("Delete promise failed"+err.getCause());
-          deletePromise.fail(err.getCause());
+          deletePromise.fail("Device is in provision state or has entries in memory");
         });
 
     },deleteFuture->
@@ -252,13 +255,14 @@ public class DiscoveryRoutes extends AbstractVerticle
 
                     discoveryAndCredentialBody.put("username",rowResult.iterator().next().getString(0));
 
-                    discoveryAndCredentialBody.put("password",rowResult.iterator().next().getString(1));
+                    discoveryAndCredentialBody.put("password", rowResult.iterator().next().getString(1));
 
                     discoveryAndCredentialBody.put("ip",rowResult.iterator().next().getString(2));
 
                     discoveryAndCredentialBody.put("name",rowResult.iterator().next().getString(3));
 
                     discoveryAndCredentialBody.put("doPolling",doProvision);
+
 
                     vertx.eventBus().send(Address.PLUGIN_DATA_SENDER,discoveryAndCredentialBody);
 
@@ -306,6 +310,15 @@ public class DiscoveryRoutes extends AbstractVerticle
     {
 
       var ip = context.request().getFormAttribute("ip");
+
+      var regex = "^((25[0-5]|(2[0-4]|1\\d|[1-9]|)\\d)\\.?\\b){4}$";
+
+      var pattern = Pattern.compile(regex);
+
+      var matcher = pattern.matcher(ip);
+
+      if(!matcher.matches())
+        context.response().end("Invalid Ip");
 
       var name = context.request().getFormAttribute("name");
 

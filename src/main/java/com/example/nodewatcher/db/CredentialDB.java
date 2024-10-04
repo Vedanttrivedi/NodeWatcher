@@ -24,17 +24,10 @@ public class CredentialDB
   {
     String query = "INSERT INTO Credentials (name, username, password, protocol) VALUES (?, ?, ?, ?)";
 
-    var secretKey = Config.generateKey();
 
-//    String encryptedPassword;
-//
-//    if(secretKey!=null)
-//      encryptedPassword = Config.encrypt(credential.password());
-//    else
-//      encryptedPassword = credential.password();
 
     return sqlClient.preparedQuery(query)
-      .execute(Tuple.of(credential.name(), credential.username(), credential.password(), credential.protocol()))
+      .execute(Tuple.of(credential.name(), credential.username(), credential.password() , credential.protocol()))
       .mapEmpty();
 
   }

@@ -5,47 +5,46 @@ import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Promise;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
-
 import java.time.LocalDateTime;
 
 public class DataPoll extends AbstractVerticle
 {
+  private long lastMemoryPoll;
+
+  private long lastCpuPoll;
+
+  public DataPoll()
+  {
+    var current_time = System.currentTimeMillis();
+
+    lastCpuPoll =current_time;
+
+    lastMemoryPoll =  current_time;
+  }
+
   @Override
   public void start(Promise<Void> startPromise) throws Exception
   {
+
     vertx.eventBus().localConsumer("poll",handler->{
 
       startPolling();
 
     });
 
-    vertx.eventBus().<String>localConsumer("stopPolling",handler->{
-
-
-    });
-
     startPromise.complete();
-
-  }
-  private void stopPolling(long setPeriodicId)
-  {
-
-    vertx.cancelTimer(setPeriodicId);
 
   }
 
   private void startPolling()
   {
 
-    final long[] lastMemoryPoll = {System.currentTimeMillis()};
-    final long[] lastCpuPoll = {System.currentTimeMillis()};
-
     vertx.setPeriodic(100, handler ->
     {
 
       long currentTime = System.currentTimeMillis();
 
-      if (currentTime - lastMemoryPoll[0] >= Address.MEMORY_INTERVAL)
+      if (currentTime - lastMemoryPoll >= Address.MEMORY_INTERVAL)
       {
           System.out.println("Memory polling "+ LocalDateTime.now().toString());
 
@@ -59,11 +58,11 @@ public class DataPoll extends AbstractVerticle
 
           vertx.eventBus().send("send",jsonArray);
 
-          lastMemoryPoll[0] = currentTime; // Update last memory poll time
+          lastMemoryPoll = currentTime; // Update last memory poll time
 
       }
 
-      if (currentTime - lastCpuPoll[0] >= Address.CPU_INTERVAL)
+      if (currentTime - lastCpuPoll >= Address.CPU_INTERVAL)
       {
 
           System.out.println("Cpu polling "+ LocalDateTime.now().toString());
@@ -78,7 +77,7 @@ public class DataPoll extends AbstractVerticle
 
           vertx.eventBus().send("send",jsonArray);
 
-          lastCpuPoll[0] = currentTime; // Update last CPU poll time
+          lastCpuPoll = currentTime; // Update last CPU poll time
 
       }
 

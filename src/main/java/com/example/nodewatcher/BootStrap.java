@@ -20,7 +20,9 @@ public class BootStrap
     var context = new ZContext();
 
     vertx.deployVerticle(new HostReachabilityChecker())
+
     .compose(deploymentId->vertx.deployVerticle(new Client(databaseClient)))
+
     .onComplete(deploymentResult->{
         if(deploymentResult.failed())
         {
@@ -29,32 +31,39 @@ public class BootStrap
       });
 
     vertx.deployVerticle(new PluginInitializer(databaseClient))
+
+      .compose(deploymentId->vertx.deployVerticle(new PluginDataSender(context)))
+
+      .compose(deploy->vertx.deployVerticle(new DataPoll()))
+
       .onComplete(deploymentResult->{
+
         if(deploymentResult.succeeded())
         {
-          log.error("Deployment Failed");
 
           var pluginDataReceiverThread = new PluginDataReceiver(context,vertx);
-
           pluginDataReceiverThread.start();
 
-          vertx.deployVerticle(new PluginDataSaver(databaseClient),
+          var pluginDataReceiverThread2 = new PluginDataReceiver2(context,vertx);
+          pluginDataReceiverThread2.start();
 
-            dataSaverResult->{
+          Future.join(
+            vertx.deployVerticle(new PluginDataSaver(databaseClient)),
 
-              if(dataSaverResult.failed())
-                System.out.println("Failed to Deploy Data saver!");
+            vertx.deployVerticle(new PluginDataSaver(databaseClient)),
 
-            });
+            vertx.deployVerticle(new PluginDataSaver(databaseClient)),
+
+            vertx.deployVerticle(new PluginDataSaver(databaseClient))
+            )
+
+            .onComplete(result->{
+             if(result.failed())
+               System.out.println("Something went wrong while deploying data saver "+result.cause());
+          });
+
         }
       });
 
-      vertx.eventBus().localConsumer("close",handler->{
-
-        System.out.println("Closing the application ");
-
-        System.exit(1);
-
-      });
     }
 }

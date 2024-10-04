@@ -13,16 +13,14 @@ public class DatabaseClient
   public static MySQLPool getClient(Vertx vertx)
   {
 
-    MySQLConnectOptions connectOptions = new MySQLConnectOptions()
+    var connectOptions = new MySQLConnectOptions()
       .setPort(DBAuth.DBPORT)
       .setHost(DBAuth.DBHOST)
       .setDatabase(DBAuth.DBNAME)
       .setUser(DBAuth.DBUSER)
       .setPassword(DBAuth.DBPASSWORD);
 
-    System.out.println("Database Connection Established for user: " + connectOptions.getUser());
-
-    PoolOptions poolOptions = new PoolOptions()
+    var poolOptions = new PoolOptions()
       .setMaxSize(5);
 
     sqlClient = MySQLPool.pool(vertx, connectOptions, poolOptions);

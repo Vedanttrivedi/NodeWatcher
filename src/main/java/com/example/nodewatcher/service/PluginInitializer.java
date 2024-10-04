@@ -22,15 +22,10 @@ public class PluginInitializer extends AbstractVerticle
 
   private final SqlClient sqlClient;
 
-  private final JsonArray responseData;
-
-
   public PluginInitializer(SqlClient sqlClient)
   {
 
     this.sqlClient = sqlClient;
-
-    this.responseData = new JsonArray();
 
   }
 
@@ -43,21 +38,15 @@ public class PluginInitializer extends AbstractVerticle
       handleNewDeviceData(pluginSenderHandler.body());
 
     });
+    startPromise.complete();
 
     fetchAndProcessDiscoveries();
 
-    startPromise.complete();
-
   }
-
 
   private void handleNewDeviceData(JsonObject device)
   {
-
-    var updatedRequestResponse = new JsonArray().add(device);
-
-    sendDataToPlugin(updatedRequestResponse);
-
+    sendDataToPlugin(device);
   }
 
   private void fetchAndProcessDiscoveries()
@@ -83,93 +72,55 @@ public class PluginInitializer extends AbstractVerticle
 
   private void processDiscoveryResults(RowSet<Row> rows)
   {
-    AtomicInteger remainingRows = new AtomicInteger(rows.size());
-
-    AtomicBoolean atLeastOnePingable = new AtomicBoolean(false);
-
     rows.forEach(row ->
     {
-      String ip = row.getString(1);
+      var ip = row.getString(1);
 
-      pingDevice(ip, row, remainingRows, atLeastOnePingable);
+      ping(ip, row);
 
     });
 
   }
 
-  private void pingDevice(String ip,Row row, AtomicInteger remainingRows, AtomicBoolean atLeastOnePingable)
+  private void ping(String ip,Row row)
   {
-    JsonObject pingBody = new JsonObject().put("ip", ip);
+    var pingBody = new JsonObject().put("ip", ip);
 
     vertx.eventBus().request(Address.PINGCHECK, pingBody, reply -> {
 
       if (reply.succeeded())
       {
-        addDeviceToResponseData(row);
 
-        if(!atLeastOnePingable.get())
+        var discoveryAndCredential = new JsonObject()
+          .put("discoveryName", row.getString(0))
+          .put("ip", row.getString(1))
+          .put("username", row.getString(2))
+          .put("password", row.getString(3))
+          .put("doPolling",true);
 
-          atLeastOnePingable.set(true);
+         sendDataToPlugin(discoveryAndCredential);
       }
       else
       {
           logger.info("Bootstrap : Device is Down "+ip);
 
       }
-      checkIfProcessingComplete(remainingRows, atLeastOnePingable);
+
     });
 
   }
 
-  private void addDeviceToResponseData(Row row)
-  {
-    var discoveryAndCredential = new JsonObject()
-      .put("discoveryName", row.getString(0))
-      .put("ip", row.getString(1))
-      .put("username", row.getString(2))
-      .put("password", row.getString(3))
-      .put("doPolling",true);
-
-    responseData.add(discoveryAndCredential);
-
-  }
-
-  private void checkIfProcessingComplete(AtomicInteger remainingRows, AtomicBoolean atLeastOnePingable)
-  {
-    if (remainingRows.decrementAndGet() == 0)
-    {
-      if (atLeastOnePingable.get())
-      {
-
-        sendDataToPlugin(responseData);
-      }
-      else
-      {
-          logger.error("App Start: No Ping Device Found!");
-
-      }
-    }
-  }
-
-  private void sendDataToPlugin(JsonArray data)
+  private void sendDataToPlugin(JsonObject data)
   {
     var fetchDetails = createFetchDetailsObject();
 
-    data.add(fetchDetails);
+    var tempData = new JsonArray();
 
-    try
-    {
+    tempData.add(data);
 
-      vertx.eventBus().send("send",data);
+    tempData.add(fetchDetails);
 
-    }
-
-    catch (Exception e)
-    {
-      System.out.println("Error happen while sending data");
-
-    }
-
+    vertx.eventBus().send("send",tempData);
 
   }
 
@@ -178,5 +129,4 @@ public class PluginInitializer extends AbstractVerticle
     return new JsonObject()
       .put("Sample",true);
   }
-
 }

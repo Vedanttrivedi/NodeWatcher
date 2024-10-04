@@ -49,7 +49,7 @@ public class PluginDataSaver extends AbstractVerticle
 
                 if(devicesInfo.getBoolean("status"))
                 {
-                  var memory_metric = Memory_Metric.fromJson((JsonObject) device);
+                  var memory_metric = Memory_Metric.fromJson(device);
 
                   var localDateTime = LocalDateTime.parse(devicesInfo.getString("time"), DateTimeFormatter.ISO_LOCAL_DATE_TIME);
 

@@ -29,8 +29,6 @@ public class Client extends AbstractVerticle
 
     Router router = Router.router(vertx);
 
-
-
     vertx.deployVerticle(new CredentialsRoutes(router,sqlClient));
 
     vertx.deployVerticle(new DiscoveryRoutes(router,sqlClient));
@@ -54,6 +52,7 @@ public class Client extends AbstractVerticle
 
         if(http.succeeded())
         {
+
           startPromise.complete();
         }
 
@@ -63,7 +62,6 @@ public class Client extends AbstractVerticle
         }
 
       });
-
   }
 
   @Override

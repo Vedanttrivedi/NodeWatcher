@@ -52,8 +52,8 @@ public class PluginDataSender extends AbstractVerticle
           send();
 
        });
-       startPromise.complete();
 
+       startPromise.complete();
 
   }
   private void send()
@@ -70,8 +70,6 @@ public class PluginDataSender extends AbstractVerticle
         if(!status)
         {
           log.error("Plugin not started ");
-
-          vertx.eventBus().send("close","close the application");
 
         }
         else

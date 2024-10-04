@@ -56,13 +56,15 @@ public class DiscoveryDB
 
           var username = rows.iterator().next().getString(1);
 
-          var password = Config.decrypt(rows.iterator().next().getString(2));
+          var password = rows.iterator().next().getString(2);
 
-          System.out.println("Decrypted password "+password);
 
           var payLoad = new JsonObject();
+
           payLoad.put("id",credentialId);
+
           payLoad.put("username",username);
+
           payLoad.put("password",password);
 
           promise.complete(payLoad);
@@ -154,7 +156,6 @@ public class DiscoveryDB
 
   public Future<Void> deleteDiscovery(String name)
   {
-    System.out.println("Deleting "+name);
     return sqlClient.preparedQuery("DELETE FROM Discovery WHERE name = ? ")
       .execute(Tuple.of(name))
       .mapEmpty();
@@ -172,17 +173,6 @@ public class DiscoveryDB
       return sqlClient.preparedQuery("UPDATE Discovery SET is_provisioned = ? WHERE name = ? AND is_provisioned = ?")
         .execute(Tuple.of(true,name,0));
     }
-  }
-  public Future<JsonObject> findCredentials(String credentialName)
-  {
-    return sqlClient.preparedQuery("SELECT * FROM Credentials WHERE name = ?")
-      .execute(Tuple.of(credentialName))
-      .map(rows -> {
-        if (rows.size() > 0) {
-          return rows.iterator().next().toJson();
-        }
-        return null;
-      });
   }
 
   public Future<String> sameIpAndDiscoveryNameExists(String ip, String name)

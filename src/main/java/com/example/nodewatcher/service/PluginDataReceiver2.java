@@ -8,7 +8,7 @@ import org.zeromq.SocketType;
 import org.zeromq.ZContext;
 import org.zeromq.ZMQ;
 
-public class PluginDataReceiver extends Thread
+public class PluginDataReceiver2 extends Thread
 {
   private ZMQ.Socket pullSocket;
 
@@ -16,7 +16,7 @@ public class PluginDataReceiver extends Thread
 
   private static final Logger logger = LoggerFactory.getLogger(PluginDataSaver.class);
 
-  public PluginDataReceiver(ZContext context, Vertx vertx)
+  public PluginDataReceiver2(ZContext context, Vertx vertx)
   {
     this.pullSocket = context.createSocket(SocketType.PULL);
 

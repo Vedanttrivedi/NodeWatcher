@@ -3,6 +3,7 @@ package com.example.nodewatcher.service;
 import com.example.nodewatcher.utils.Address;
 import com.jcraft.jsch.JSch;
 import io.vertx.core.AbstractVerticle;
+import io.vertx.core.Promise;
 import io.vertx.core.eventbus.Message;
 import io.vertx.core.json.JsonObject;
 import java.io.BufferedReader;
@@ -10,15 +11,14 @@ import java.io.InputStreamReader;
 
 public class HostReachabilityChecker extends AbstractVerticle
 {
-
   @Override
-  public void start()
+  public void start(Promise<Void> startPromise) throws Exception
   {
-
     vertx.eventBus().<JsonObject>localConsumer(Address.PINGCHECK, this::handlePingRequest);
 
     vertx.eventBus().<JsonObject>localConsumer(Address.SSHCHECK, this::handleSSHRequest);
 
+    startPromise.complete();
   }
 
   private void handlePingRequest(Message<JsonObject> message)
@@ -42,10 +42,13 @@ public class HostReachabilityChecker extends AbstractVerticle
         {
 
           if(line.contains("0% loss"))
+          {
             counts++;
+            break;
+          }
 
         }
-        if(counts==3)
+        if(counts > 0)
           pingResultPromise.complete(true);
 
         else
