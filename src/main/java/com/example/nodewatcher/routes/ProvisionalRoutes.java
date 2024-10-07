@@ -23,9 +23,8 @@ public class ProvisionalRoutes extends AbstractVerticle
   @Override
   public void start(Promise<Void> startPromise) throws Exception
   {
-    super.start(startPromise);
-
     attach();
+    startPromise.complete();
   }
 
   public void attach()

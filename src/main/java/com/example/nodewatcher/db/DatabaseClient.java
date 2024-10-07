@@ -7,18 +7,17 @@ import io.vertx.sqlclient.*;
 
 public class DatabaseClient
 {
-
   private static MySQLPool sqlClient;
 
   public static MySQLPool getClient(Vertx vertx)
   {
 
     var connectOptions = new MySQLConnectOptions()
-      .setPort(DBAuth.DBPORT)
-      .setHost(DBAuth.DBHOST)
-      .setDatabase(DBAuth.DBNAME)
-      .setUser(DBAuth.DBUSER)
-      .setPassword(DBAuth.DBPASSWORD);
+      .setPort(DBAuth.PORT)
+      .setHost(DBAuth.HOST)
+      .setDatabase(DBAuth.DATABASE)
+      .setUser(DBAuth.USERNAME)
+      .setPassword(DBAuth.PASSWORD);
 
     var poolOptions = new PoolOptions()
       .setMaxSize(5);

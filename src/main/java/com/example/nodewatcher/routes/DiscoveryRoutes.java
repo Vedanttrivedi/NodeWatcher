@@ -40,7 +40,9 @@ public class DiscoveryRoutes extends AbstractVerticle
   @Override
   public void start(Promise<Void> startPromise)
   {
+    startPromise.complete();
     attach();
+
   }
 
   public void attach()
@@ -55,7 +57,9 @@ public class DiscoveryRoutes extends AbstractVerticle
 
     router.get("/discovery/all").handler(this::getAllDiscovery);
 
-    router.put("/discovery/update/:name").handler(this::updateDiscovery);
+    router.put("/discovery/update/:name").
+      handler(BodyHandler.create())
+      .handler(this::updateDiscovery);
 
     router.delete("/discovery/delete/:name").handler(this::deleteDiscovery);
 
@@ -174,19 +178,39 @@ public class DiscoveryRoutes extends AbstractVerticle
 
     var ip = context.request().getFormAttribute("ip");
 
-    vertx.executeBlocking(updatePromise->
+    vertx.executeBlocking(updatePromise ->
     {
-      discoveryDB.updateDiscovery(name, ip)
-        .onSuccess(success -> updatePromise.complete())
-        .onFailure(err -> updatePromise.fail("Discovery name not found!"));
+        if(context.request().getFormAttribute("credential_name")!=null)
+        {
+          discoveryDB.updateDiscovery(name,ip,context.request().getFormAttribute("credential_name"))
+            .onComplete(result->{
 
-    },updateFuture->{
+              if(result.succeeded())
+                updatePromise.complete("Ip and Credential Updated For Discovery "+name);
+              else
+                updatePromise.fail("Credential_name or Discovery name does not exists");
+            });
+        }
+        else
+        {
+          discoveryDB.updateDiscovery(name,ip)
+            .onComplete(result->{
 
-      if(updateFuture.succeeded())
-        context.response().end("Discovery IP Updated for " + name);
+              if(result.result()==1)
+                updatePromise.complete();
+              else
+                updatePromise.fail("Credential_name or Discovery name does not exists");
+
+            });
+        }
+    }, updateFuture ->
+    {
+
+      if (updateFuture.succeeded())
+        context.response().end(updateFuture.result().toString());
 
       else
-        context.response().end(updateFuture.cause().toString());
+        context.response().end(updateFuture.cause().getMessage().toString());
     });
 
   }
@@ -197,23 +221,24 @@ public class DiscoveryRoutes extends AbstractVerticle
 
     vertx.executeBlocking(deletePromise->{
       discoveryDB.deleteDiscovery(name)
-        .onSuccess(success ->{
+        .onComplete(result->{
 
-          deletePromise.complete("Deletion Successful");
-        })
+          if(result.succeeded())
+            deletePromise.complete();
 
-        .onFailure(err -> {
-          System.out.println("Delete promise failed"+err.getCause());
-          deletePromise.fail("Device is in provision state or has entries in memory");
+          else
+            deletePromise.fail("Discovery does not exists");
+
         });
 
     },deleteFuture->
     {
       if(deleteFuture.succeeded())
-        context.response().end(deleteFuture.result().toString());
+        context.response().end("Discovery deleted");
 
       else
-        context.response().end(deleteFuture.cause().toString());
+        context.response().end(deleteFuture.cause().getMessage());
+
     });
   }
 

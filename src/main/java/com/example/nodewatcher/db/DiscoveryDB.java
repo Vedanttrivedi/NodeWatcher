@@ -12,6 +12,7 @@ import io.vertx.sqlclient.RowSet;
 import io.vertx.sqlclient.SqlClient;
 import io.vertx.sqlclient.Tuple;
 
+import java.lang.reflect.Type;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class DiscoveryDB
@@ -24,25 +25,6 @@ public class DiscoveryDB
     this.sqlClient = sqlClient;
   }
 
-  public Future<Integer> findCredentialId(String credentialName)
-  {
-    Promise<Integer> promise = Promise.promise();
-    sqlClient.preparedQuery("SELECT id FROM Credentials WHERE name = ?")
-      .execute(Tuple.of(credentialName.trim()))
-      .onSuccess(rows -> {
-        if (rows.size() > 0)
-        {
-          var credentialId = rows.iterator().next().getInteger(0);
-          promise.complete(credentialId);
-        }
-        else
-        {
-          promise.fail("Credentials do not exist");
-        }
-      })
-      .onFailure(promise::fail);
-    return promise.future();
-  }
   public Future<JsonObject> findCredential(String credentialName)
   {
     Promise<JsonObject> promise = Promise.promise();
@@ -147,18 +129,66 @@ public class DiscoveryDB
       });
   }
 
-  public Future<Void> updateDiscovery(String name, String ip)
+  public Future<Integer> updateDiscovery(String name, String ip)
   {
     return sqlClient.preparedQuery("UPDATE Discovery SET ip = ? WHERE name = ? ")
       .execute(Tuple.of(ip, name))
-      .mapEmpty();
+      .map(rows -> rows.rowCount());
   }
 
-  public Future<Void> deleteDiscovery(String name)
+  public Future<Integer> updateDiscovery(String name, String ip, String credential_name)
   {
-    return sqlClient.preparedQuery("DELETE FROM Discovery WHERE name = ? ")
+    Promise<Integer> promise = Promise.promise();
+
+    sqlClient.preparedQuery("SELECT id FROM Credentials WHERE name = ? ")
+      .execute(Tuple.of(credential_name))
+      .onComplete(
+
+        result->{
+
+          if(result.result().size()==1)
+          {
+            var id = result.result().iterator().next().getInteger(0);
+
+            sqlClient.preparedQuery("UPDATE Discovery SET ip = ? , credentialId = ? where name = ?")
+              .execute(Tuple.of(ip,id,name))
+              .onComplete(updateResult->
+              {
+                System.out.println("update result "+updateResult.result());
+
+                if(updateResult.succeeded())
+                  promise.complete(updateResult.result().rowCount());
+                else
+                  promise.fail("Could not update DB error");
+              });
+          }
+          else
+          {
+            promise.fail("credential does not exists");}
+
+      });
+
+    return promise.future();
+  }
+
+  public Future<Integer> deleteDiscovery(String name)
+  {
+    Promise<Integer> promise = Promise.promise();
+
+    sqlClient.preparedQuery("DELETE FROM Discovery WHERE name = ? ")
       .execute(Tuple.of(name))
-      .mapEmpty();
+      .onComplete(result->{
+
+        System.out.println("delete "+result.result().rowCount());
+
+        if(result.result().rowCount()!=0)
+          promise.complete(0);
+        else
+          promise.fail("Discovery does not exists");
+
+      });
+
+    return promise.future();
   }
 
   public Future<RowSet<Row>>provisionDiscovery(String name,boolean status)

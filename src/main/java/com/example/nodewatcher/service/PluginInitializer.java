@@ -52,22 +52,33 @@ public class PluginInitializer extends AbstractVerticle
   private void fetchAndProcessDiscoveries()
   {
 
-    sqlClient.query("SELECT d.name, d.ip, c.username, c.password, c.protocol " +
-        "FROM Discovery d JOIN Credentials c ON d.credentialID = c.id WHERE d.is_provisioned = true")
-      .execute()
+    vertx.executeBlocking(promise->{
 
-      .onComplete(result -> {
+      sqlClient.query("SELECT d.name, d.ip, c.username, c.password, c.protocol " +
+          "FROM Discovery d JOIN Credentials c ON d.credentialID = c.id WHERE d.is_provisioned = true")
+        .execute()
 
-        if (result.succeeded())
-        {
-          processDiscoveryResults(result.result());
-        }
-        else
-        {
-          logger.error("Error Fetching Details ");
-        }
+        .onComplete(result -> {
 
-      });
+          if (result.succeeded())
+          {
+            promise.complete(result.result());
+          }
+          else
+          {
+            promise.fail("Error Fetching Details ");
+          }
+
+        });
+
+    },future->{
+      if(future.succeeded())
+
+        processDiscoveryResults((RowSet<Row>) future.result());
+      else
+        System.out.println("Cannot fetch");
+
+    });
   }
 
   private void processDiscoveryResults(RowSet<Row> rows)
