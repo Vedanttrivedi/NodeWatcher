@@ -1,9 +1,11 @@
 package com.example.nodewatcher.service;
 
+import com.example.nodewatcher.BootStrap;
 import com.example.nodewatcher.utils.Address;
 import com.example.nodewatcher.utils.Config;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Promise;
+import io.vertx.core.eventbus.DeliveryOptions;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.sqlclient.Row;
@@ -22,10 +24,10 @@ public class PluginInitializer extends AbstractVerticle
 
   private final SqlClient sqlClient;
 
-  public PluginInitializer(SqlClient sqlClient)
+  public PluginInitializer()
   {
 
-    this.sqlClient = sqlClient;
+    this.sqlClient = BootStrap.getDatabaseClient();
 
   }
 
@@ -52,7 +54,7 @@ public class PluginInitializer extends AbstractVerticle
   private void fetchAndProcessDiscoveries()
   {
 
-    vertx.executeBlocking(promise->{
+    vertx.executeBlocking(future->{
 
       sqlClient.query("SELECT d.name, d.ip, c.username, c.password, c.protocol " +
           "FROM Discovery d JOIN Credentials c ON d.credentialID = c.id WHERE d.is_provisioned = true")
@@ -62,19 +64,20 @@ public class PluginInitializer extends AbstractVerticle
 
           if (result.succeeded())
           {
-            promise.complete(result.result());
+            future.complete(result.result());
           }
           else
           {
-            promise.fail("Error Fetching Details ");
+            future.fail("Error Fetching Details ");
           }
 
         });
 
-    },future->{
-      if(future.succeeded())
+    },futureRes->{
 
-        processDiscoveryResults((RowSet<Row>) future.result());
+      if(futureRes.succeeded())
+        processDiscoveryResults((RowSet<Row>) futureRes.result());
+
       else
         System.out.println("Cannot fetch");
 
@@ -97,7 +100,7 @@ public class PluginInitializer extends AbstractVerticle
   {
     var pingBody = new JsonObject().put("ip", ip);
 
-    vertx.eventBus().request(Address.PINGCHECK, pingBody, reply -> {
+    vertx.eventBus().request(Address.PINGCHECK, pingBody, new DeliveryOptions().setSendTimeout(3000), reply -> {
 
       if (reply.succeeded())
       {

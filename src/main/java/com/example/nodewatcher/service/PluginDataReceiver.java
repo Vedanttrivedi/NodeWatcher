@@ -18,20 +18,20 @@ public class PluginDataReceiver extends Thread
 
   public PluginDataReceiver(ZContext context, Vertx vertx)
   {
+
     this.pullSocket = context.createSocket(SocketType.PULL);
 
     pullSocket.connect(Address.PULL_SOCKET);
 
     this.vertx = vertx;
+
   }
 
   @Override
   public void run()
   {
-
     try
     {
-
       while (true)
       {
         var message = pullSocket.recvStr();
@@ -48,10 +48,6 @@ public class PluginDataReceiver extends Thread
     catch (Exception exception)
     {
       logger.error("Not Receiving data from plugin ");
-      //If plugin is not able to send the data then there is no meaning of polling.
-      //so stop polling
-
-      vertx.eventBus().send("close","stop");
 
     }
 

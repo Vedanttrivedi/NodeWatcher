@@ -1,6 +1,5 @@
 package com.example.nodewatcher.db;
 
-import com.example.nodewatcher.models.Discovery;
 import com.example.nodewatcher.utils.Config;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
@@ -73,7 +72,8 @@ public class DiscoveryDB
 
   public Future<JsonObject> getDiscovery(String name)
   {
-    return sqlClient.preparedQuery("select d.name,d.ip,c.username,c.password from Discovery d " +
+
+    return sqlClient.preparedQuery("select d.name,d.ip,c.username,c.password,d.is_provisioned from Discovery d " +
         "join Credentials c ON c.id = d.credentialID where d.name = ?")
       .execute(Tuple.of(name))
       .map(rows ->
@@ -92,6 +92,8 @@ public class DiscoveryDB
 
 
           data.put("password",row.getString("password"));
+
+          data.put("is_provision",row.getBoolean("is_provisioned"));
 
           return data;
         }
@@ -171,21 +173,43 @@ public class DiscoveryDB
     return promise.future();
   }
 
-  public Future<Integer> deleteDiscovery(String name)
+  public Future<String> deleteDiscovery(String name)
   {
-    Promise<Integer> promise = Promise.promise();
+    Promise<String> promise = Promise.promise();
 
-    sqlClient.preparedQuery("DELETE FROM Discovery WHERE name = ? ")
+  sqlClient.preparedQuery("SELECT name,is_provisioned FROM Discovery WHERE name = ?")
       .execute(Tuple.of(name))
       .onComplete(result->{
 
-        System.out.println("delete "+result.result().rowCount());
+        if(result.result().size()!=0)
+          {
+            System.out.println("Row Information "+result.result());
+            var row = result.result().iterator().next();
+            System.out.println("row info "+row.getString(0));
+            System.out.println("row 2 "+row.getBoolean(1));
+            System.out.println("Row Information "+row);
+            if(row.getBoolean(1))
+            {
+              promise.complete("Discovery is in provision state . You cannot delete. You must first unprovision it");
 
-        if(result.result().rowCount()!=0)
-          promise.complete(0);
-        else
-          promise.fail("Discovery does not exists");
+            }
+            else
+            {
+              sqlClient.preparedQuery("DELETE FROM Discovery where name = ? ")
+                .execute(Tuple.of(name))
+                .onComplete(deleteRes->{
+                  if(deleteRes.succeeded())
+                    promise.complete("Discovery Deleted");
+                  else
+                    promise.fail(deleteRes.cause().getMessage());
+                });
+            }
 
+          }
+          else
+          {
+            promise.fail("Discovery does not exists");
+          }
       });
 
     return promise.future();

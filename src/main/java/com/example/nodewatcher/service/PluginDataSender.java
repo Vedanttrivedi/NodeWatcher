@@ -3,7 +3,6 @@ package com.example.nodewatcher.service;
 import com.example.nodewatcher.utils.Address;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Promise;
-import io.vertx.core.Vertx;
 import io.vertx.core.json.JsonArray;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -11,32 +10,28 @@ import org.zeromq.SocketType;
 import org.zeromq.ZContext;
 import org.zeromq.ZMQ;
 
-import java.util.AbstractCollection;
 import java.util.Base64;
 
 public class PluginDataSender extends AbstractVerticle
 {
   private static final Logger log = LoggerFactory.getLogger(PluginDataSender.class);
-  private ZMQ.Socket pushSocket;
+
+  private ZMQ.Socket socket;
 
   private Boolean pollStarted;
 
   private JsonArray data;
-
-  private Boolean isSent;
 
   public PluginDataSender(ZContext context)
   {
 
     pollStarted = false;
 
-    this.pushSocket = context.createSocket(SocketType.PUSH);
+    socket = context.createSocket(SocketType.PUSH);
 
-    this.pushSocket.bind(Address.PUSH_SOCKET);
+    socket.bind(Address.PUSH_SOCKET);
 
-    this.data = new JsonArray();
-
-    this.isSent = false;
+    data = new JsonArray();
 
   }
 
@@ -47,8 +42,6 @@ public class PluginDataSender extends AbstractVerticle
 
           this.data = handler.body();
 
-          isSent = true;
-
           send();
 
        });
@@ -58,32 +51,26 @@ public class PluginDataSender extends AbstractVerticle
   }
   private void send()
   {
-      if(isSent)
+
+      var encodedData = Base64.getEncoder().encode(data.encode().getBytes());
+
+      var status = socket.send(encodedData,ZMQ.DONTWAIT);
+
+      while(!status)
       {
 
-        var encodedData = Base64.getEncoder().encode(data.encode().getBytes());
+        log.error("Polling failed ! Plugin is down");
 
-        var status = pushSocket.send(encodedData,ZMQ.DONTWAIT);
+        status = socket.send(encodedData,ZMQ.DONTWAIT);
 
-        System.out.println("Status "+status);
+      }
 
-        if(!status)
-        {
-          log.error("Plugin not started ");
+      if(!pollStarted)
+      {
+        vertx.eventBus().send("poll","Start Polling");
 
-        }
-        else
-        {
-          isSent = false;
+        pollStarted = true;
 
-          if(!pollStarted)
-          {
-            vertx.eventBus().send("poll","Start Polling");
-
-            pollStarted = true;
-
-          }
-        }
       }
 
     }
@@ -91,7 +78,7 @@ public class PluginDataSender extends AbstractVerticle
   @Override
   public void stop(Promise<Void> stopPromise) throws Exception
   {
-    pushSocket.close();
+    socket.close();
 
     stopPromise.complete();
 

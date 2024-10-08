@@ -137,6 +137,31 @@ public class MetricDB
       });
   }
 
+
+  public Future<JsonArray> getMemoryMetricsAggr(SqlClient sqlClient,String aggr,String metricName)
+  {
+
+    var query = "SELECT created_at,"+aggr+"(?) FROM Memory_Metric";
+    System.out.println("Query "+query);
+    return sqlClient.preparedQuery(query)
+      .execute(Tuple.of(metricName))
+      .map(rows -> {
+        JsonArray metricsArray = new JsonArray();
+        var config = new JsonObject();
+        config.put("metric","memory");
+        config.put("storeFormat","bytes");
+        metricsArray.add(config);
+        rows.forEach(row -> {
+          JsonObject metric = new JsonObject()
+            .put("created_at", row.getLocalDateTime("created_at").toString())
+            .put("metric",metricName);
+          metricsArray.add(metric);
+        });
+
+        return metricsArray;
+      });
+  }
+
   public Future<JsonArray> getMemoryMetricsLastN(SqlClient sqlClient, String discoveryName, int n)
   {
 

@@ -1,5 +1,7 @@
 package com.example.nodewatcher.service;
 
+import com.example.nodewatcher.BootStrap;
+import com.example.nodewatcher.db.DatabaseClient;
 import com.example.nodewatcher.db.MetricDB;
 import com.example.nodewatcher.models.Cpu_Metric;
 import com.example.nodewatcher.models.Memory_Metric;
@@ -21,11 +23,13 @@ public class PluginDataSaver extends AbstractVerticle
 
   private static final Logger logger = LoggerFactory.getLogger(PluginDataSaver.class);
 
-  private SqlClient sqlClient;
+  private static SqlClient sqlClient;
 
-  public PluginDataSaver(SqlClient sqlClient)
+  public PluginDataSaver()
   {
-    this.sqlClient =sqlClient;
+
+    sqlClient = BootStrap.getDatabaseClient();
+
   }
 
   @Override
@@ -41,7 +45,6 @@ public class PluginDataSaver extends AbstractVerticle
 
           var device = new JsonObject(new String(decodedBase64Data, ZMQ.CHARSET));
 
-
               var devicesInfo  = (JsonObject) device;
 
               if(devicesInfo.getString("metric").equals("memory"))
@@ -55,21 +58,22 @@ public class PluginDataSaver extends AbstractVerticle
 
                   var timestamp = Timestamp.valueOf(localDateTime);
 
-                  vertx.executeBlocking(saveInDbPromise-> {
+                  vertx.executeBlocking(saveInDbFuture-> {
+
 
                     MetricDB.saveMemory(sqlClient,memory_metric,timestamp)
                       .onComplete(result->
                       {
                           if(result.succeeded())
-                            saveInDbPromise.complete();
+                            saveInDbFuture.complete();
                           else
-                            saveInDbPromise.fail("DB Insertion error ");
+                            saveInDbFuture.fail("DB Insertion error ");
                       });
 
-                  },saveInDbFuture->{
+                  },saveInDbFutureRes->{
 
-                    if(saveInDbFuture.failed())
-                        logger.error("DB(Memory) Save error "+saveInDbFuture.cause());
+                    if(saveInDbFutureRes.failed())
+                        logger.error("DB(Memory) Save error "+saveInDbFutureRes.cause());
 
                   });
                 }

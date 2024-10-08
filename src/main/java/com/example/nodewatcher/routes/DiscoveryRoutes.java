@@ -1,5 +1,6 @@
 package com.example.nodewatcher.routes;
 
+import com.example.nodewatcher.BootStrap;
 import com.example.nodewatcher.db.DiscoveryDB;
 import com.example.nodewatcher.service.PluginDataSaver;
 import com.example.nodewatcher.utils.Address;
@@ -30,11 +31,11 @@ public class DiscoveryRoutes extends AbstractVerticle
 
   private static final org.slf4j.Logger logger = LoggerFactory.getLogger(PluginDataSaver.class);
 
-  public DiscoveryRoutes(Router router, SqlClient databaseClient)
+  public DiscoveryRoutes(Router router)
   {
     this.router = router;
 
-    this.discoveryDB = new DiscoveryDB(databaseClient);
+    this.discoveryDB = new DiscoveryDB(BootStrap.getDatabaseClient());
   }
 
   @Override
@@ -69,30 +70,6 @@ public class DiscoveryRoutes extends AbstractVerticle
 
   }
 
-  void findCredential(String credentialName, Promise<JsonObject> promise)
-  {
-    vertx.executeBlocking(findPromise->
-    {
-      discoveryDB.findCredential(credentialName)
-        .onComplete(findResult->{
-          if(findResult.succeeded())
-            findPromise.complete();
-          else
-            findResult.failed();
-      });
-
-    },findFuture->
-    {
-
-      if(findFuture.succeeded())
-        promise.complete();
-
-      else
-        promise.fail(findFuture.cause());
-    });
-
-  }
-
   void getDiscovery(RoutingContext context)
   {
 
@@ -101,6 +78,7 @@ public class DiscoveryRoutes extends AbstractVerticle
     vertx.executeBlocking(promise->{
 
       discoveryDB.getDiscovery(name)
+
         .onComplete(result->{
 
           if(result.succeeded())
@@ -121,12 +99,12 @@ public class DiscoveryRoutes extends AbstractVerticle
 
           vertx.eventBus().request(Address.SSHCHECK,discovery,reply->{
 
+            discovery.remove("password");
+
             if(reply.succeeded())
             {
 
               discovery.put("status","Up");
-
-              discovery.remove("password");
 
               context.response().putHeader("Content-Type", "application/json").end(discovery.encodePrettily());
 
@@ -134,8 +112,6 @@ public class DiscoveryRoutes extends AbstractVerticle
             else
             {
               discovery.put("status","Down");
-
-              discovery.remove("password");
 
               context.response().putHeader("Content-Type", "application/json").end(discovery.encodePrettily());
 
@@ -148,7 +124,6 @@ public class DiscoveryRoutes extends AbstractVerticle
 
   }
 
-  // Handler to get all discoveries
   void getAllDiscovery(RoutingContext context)
   {
     vertx.executeBlocking(promise->{
@@ -171,7 +146,6 @@ public class DiscoveryRoutes extends AbstractVerticle
     });
   }
 
-  // Handler to update a discovery record
   void updateDiscovery(RoutingContext context)
   {
     var name = context.pathParam("name");
@@ -210,7 +184,7 @@ public class DiscoveryRoutes extends AbstractVerticle
         context.response().end(updateFuture.result().toString());
 
       else
-        context.response().end(updateFuture.cause().getMessage().toString());
+        context.response().end(updateFuture.cause().toString());
     });
 
   }
@@ -219,25 +193,25 @@ public class DiscoveryRoutes extends AbstractVerticle
   {
     var name = context.pathParam("name");
 
-    vertx.executeBlocking(deletePromise->{
+    vertx.executeBlocking(deleteFuture->{
       discoveryDB.deleteDiscovery(name)
         .onComplete(result->{
 
           if(result.succeeded())
-            deletePromise.complete();
+            deleteFuture.complete(result.result());
 
           else
-            deletePromise.fail("Discovery does not exists");
+            deleteFuture.fail(result.toString());
 
         });
 
-    },deleteFuture->
+    },deleteFutureRes->
     {
-      if(deleteFuture.succeeded())
-        context.response().end("Discovery deleted");
+      if(deleteFutureRes.succeeded())
+        context.response().end(deleteFutureRes.result().toString());
 
       else
-        context.response().end(deleteFuture.cause().getMessage());
+        context.response().end(deleteFutureRes.cause().getMessage());
 
     });
   }
@@ -266,9 +240,14 @@ public class DiscoveryRoutes extends AbstractVerticle
           .onSuccess(success ->
           {
 
-            if(success.size()!=0 || success.rowCount()!=0)
+            if(success.rowCount()!=0)
             {
               context.response().end("Discovery Provision Status Updated ");
+
+              if(doProvision)
+                logger.info("Polling started for  "+name);
+              else
+                logger.info("Polling stopped for  "+name);
 
               var discoveryAndCredentialBody = new JsonObject();
 
@@ -329,21 +308,13 @@ public class DiscoveryRoutes extends AbstractVerticle
     }
 
   }
+
   void createDiscovery(RoutingContext context)
   {
     try
     {
 
       var ip = context.request().getFormAttribute("ip");
-
-      var regex = "^((25[0-5]|(2[0-4]|1\\d|[1-9]|)\\d)\\.?\\b){4}$";
-
-      var pattern = Pattern.compile(regex);
-
-      var matcher = pattern.matcher(ip);
-
-      if(!matcher.matches())
-        context.response().end("Invalid Ip");
 
       var name = context.request().getFormAttribute("name");
 
@@ -371,17 +342,17 @@ public class DiscoveryRoutes extends AbstractVerticle
             return discoveryDB.sameIpAndDiscoveryNameExists(ip, name).compose(duplicateRow -> {
 
               String finalMessage;
+
               if (duplicateRow.equals("Present"))
               {
                 finalMessage = sshReply + " - Discovery with same IP or Name already present!";
 
-                promise.complete(finalMessage);  // Stop here if duplicate is found
+                promise.complete(finalMessage);
 
                 return Future.failedFuture("duplicate data entry");
               }
               else
               {
-                // Save the discovery if no duplicate exists
                 finalMessage = sshReply + " - Saved in DB. You can provision it later.";
 
                 return discoveryDB.createDiscovery(name, ip, credential.getInteger("id")).map(v -> finalMessage);

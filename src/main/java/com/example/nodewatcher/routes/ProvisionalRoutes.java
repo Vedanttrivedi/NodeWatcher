@@ -1,10 +1,12 @@
 package com.example.nodewatcher.routes;
 
+import com.example.nodewatcher.BootStrap;
 import com.example.nodewatcher.db.MetricDB;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Promise;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
+import io.vertx.ext.web.handler.BodyHandler;
 import io.vertx.sqlclient.SqlClient;
 
 public class ProvisionalRoutes extends AbstractVerticle
@@ -14,10 +16,10 @@ public class ProvisionalRoutes extends AbstractVerticle
   private Router router;
   private SqlClient sqlClient;
 
-  public ProvisionalRoutes(Router router, SqlClient sqlClient)
+  public ProvisionalRoutes(Router router)
   {
     this.router = router;
-    this.sqlClient = sqlClient;
+    this.sqlClient = BootStrap.getDatabaseClient();
   }
 
   @Override
@@ -40,6 +42,35 @@ public class ProvisionalRoutes extends AbstractVerticle
 
     router.get("/discovery/cpu/:discoveryName/:n")
       .handler(ctx -> getCPUMetricsLastN(ctx, sqlClient));
+
+    router.get("/discovery/cpu/:discoveryName/aggr")
+
+      .handler(ctx -> getMemoryMetricsAggr(ctx, sqlClient));
+
+  }
+  private void getMemoryMetricsAggr(RoutingContext ctx, SqlClient sqlClient)
+  {
+
+    var aggr  = ctx.request().getParam("aggr");
+
+    var metricName = ctx.request().getParam("metric");
+
+    vertx.executeBlocking(promise ->
+    {
+      provisionDB.getMemoryMetricsAggr(sqlClient, aggr,metricName)
+        .onSuccess(metrics -> promise.complete(metrics.encodePrettily()))
+
+        .onFailure(err -> promise.fail("Error while fetching data "));
+
+    }, future ->
+    {
+
+      if (future.succeeded())
+        ctx.response().end(future.result().toString());
+      else
+        ctx.response().end(future.cause().getMessage());
+
+    });
 
   }
 

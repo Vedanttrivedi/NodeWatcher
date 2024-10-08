@@ -1,9 +1,5 @@
 package com.example.nodewatcher.utils;
 
-import javax.crypto.KeyGenerator;
-import javax.crypto.SecretKey;
-import java.util.Base64;
-
 public class Address
 {
   public final static String PINGCHECK = "com.example.nodewatcher.PingChecker";
@@ -22,35 +18,4 @@ public class Address
 
   public final static int CPU_INTERVAL=35000;
 
-  public final static String ENCRYPTION_ALGORITHM="AES";
-
-
-  private static SecretKey generateSecretKey()
-  {
-    try
-    {
-
-      KeyGenerator keyGenerator = KeyGenerator.getInstance(ENCRYPTION_ALGORITHM);
-
-      keyGenerator.init(128);
-
-      return keyGenerator.generateKey();
-
-    }
-    catch (Exception exception)
-    {
-      System.out.println("OOOps "+exception.getMessage());
-      return null;
-    }
-
-  }
-  public final static String secretKeyToString()
-  {
-    var secretKey = generateSecretKey();
-
-    assert secretKey != null;
-
-    return Base64.getEncoder().encodeToString(secretKey.getEncoded());
-
-  }
 }

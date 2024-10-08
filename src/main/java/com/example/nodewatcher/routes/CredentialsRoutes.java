@@ -1,5 +1,6 @@
 package com.example.nodewatcher.routes;
 
+import com.example.nodewatcher.BootStrap;
 import com.example.nodewatcher.db.CredentialDB;
 import com.example.nodewatcher.db.DiscoveryDB;
 import com.example.nodewatcher.models.Credential;
@@ -29,11 +30,12 @@ public class CredentialsRoutes extends AbstractVerticle
 
   private static final org.slf4j.Logger logger = LoggerFactory.getLogger(PluginDataSaver.class);
 
-  public CredentialsRoutes(Router router,SqlClient sqlClient)
+  public CredentialsRoutes(Router router)
   {
     this.router = router;
 
-    this.sqlClient = sqlClient;
+    this.sqlClient = BootStrap.getDatabaseClient();
+
   }
 
   @Override
@@ -103,27 +105,27 @@ public class CredentialsRoutes extends AbstractVerticle
       return;
     }
 
-    vertx.executeBlocking(promise->{
+    vertx.executeBlocking(future->{
 
       credentialDB.save(sqlClient,
         new Credential(name, username, password, LocalDateTime.now().toString(), 1))
 
         .onSuccess(success->{
 
-          promise.complete();
+          future.complete();
 
         })
         .onFailure(failure->{
 
-          promise.fail("Credentials already present ");
+          future.fail("Credentials already present ");
         });
 
-    },future->{
+    },futureRes->{
 
-      if(future.succeeded())
+      if(futureRes.succeeded())
         context.response().end("Credentials Added");
       else
-        context.response().end(future.cause().toString());
+        context.response().end(futureRes.cause().toString());
     });
 
   }
@@ -137,26 +139,26 @@ public class CredentialsRoutes extends AbstractVerticle
 
     System.out.println("For Param " + name);
 
-    vertx.executeBlocking(promise->{
+    vertx.executeBlocking(future->{
 
       credentialDB.getCredential(sqlClient, name)
         .onFailure(failureHandler -> {
 
-          promise.fail(failureHandler.getCause().toString());
+          future.fail(failureHandler.getCause().toString());
 
         }).
         onSuccess(successHandler -> {
 
-          promise.complete(successHandler.encodePrettily());
+          future.complete(successHandler.encodePrettily());
 
         });
 
-    },future->{
+    },futureRes->{
 
-      if(future.failed())
-        context.response().end(future.cause().toString());
+      if(futureRes.failed())
+        context.response().end(futureRes.cause().toString());
       else
-        context.response().end(future.result().toString());
+        context.response().end(futureRes.result().toString());
 
     });
   }
@@ -164,24 +166,24 @@ public class CredentialsRoutes extends AbstractVerticle
   // Method to retrieve all credentials
   private void getAllCredential(RoutingContext context, SqlClient sqlClient)
   {
-    vertx.executeBlocking(promise->{
+    vertx.executeBlocking(future->{
 
       credentialDB.getCredential(sqlClient)
 
         .onFailure(failureHandler ->
         {
-          promise.fail(failureHandler.getCause().toString());
+          future.fail(failureHandler.getCause().toString());
         })
         .onSuccess(successHandler -> {
-          promise.complete(successHandler.encodePrettily());
+          future.complete(successHandler.encodePrettily());
         });
 
-    },future->{
+    },futureRes->{
 
-      if(future.failed())
-        context.response().end("Something went wrong! " + future.cause().toString());
+      if(futureRes.failed())
+        context.response().end("Something went wrong! " + futureRes.cause().toString());
       else
-        context.response().end(future.result().toString());
+        context.response().end(futureRes.result().toString());
 
     });
   }
@@ -224,7 +226,7 @@ public class CredentialsRoutes extends AbstractVerticle
 
     var name = context.pathParam("name");
 
-    vertx.executeBlocking(promise->{
+    vertx.executeBlocking(future->{
 
       credentialDB.deleteCredential(sqlClient, name)
 
@@ -232,25 +234,25 @@ public class CredentialsRoutes extends AbstractVerticle
 
           System.out.println("Success Result : " + successHandler);
 
-          promise.complete("Credential Deleted ");
+          future.complete("Credential Deleted ");
         })
 
         .onFailure(failureHandler -> {
 
           System.out.println("failure Result " + failureHandler.getMessage());
 
-          promise.fail("Credential not found!");
+          future.fail("Credential not found!");
 
         });
 
-    },future->{
+    },futureRes->{
 
-      if(future.failed())
+      if(futureRes.failed())
       {
-        context.response().end(future.cause().toString());
+        context.response().end(futureRes.cause().toString());
       }
       else
-        context.response().end(future.result().toString());
+        context.response().end(futureRes.result().toString());
     });
   }
 

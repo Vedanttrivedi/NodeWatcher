@@ -87,7 +87,7 @@ public class CredentialDB
     return sqlClient.preparedQuery(query)
       .execute(Tuple.of(name))
 
-      .map(result -> result.rowCount() > 0);  // Return true if deleted, false otherwise
+      .map(result -> result.rowCount() > 0);
 
   }
 

@@ -1,5 +1,6 @@
 package com.example.nodewatcher.db;
 
+import com.example.nodewatcher.utils.Config;
 import io.vertx.core.Vertx;
 import io.vertx.mysqlclient.MySQLConnectOptions;
 import io.vertx.mysqlclient.MySQLPool;
@@ -7,6 +8,7 @@ import io.vertx.sqlclient.*;
 
 public class DatabaseClient
 {
+
   private static MySQLPool sqlClient;
 
   public static MySQLPool getClient(Vertx vertx)
@@ -20,7 +22,7 @@ public class DatabaseClient
       .setPassword(DBAuth.PASSWORD);
 
     var poolOptions = new PoolOptions()
-      .setMaxSize(5);
+      .setMaxSize(Config.DB_POOL_SIZE);
 
     sqlClient = MySQLPool.pool(vertx, connectOptions, poolOptions);
 

@@ -88,7 +88,7 @@ public class HostReachabilityChecker extends AbstractVerticle
 
     var username = data.getString("username");
 
-    vertx.executeBlocking(sshPromise->{
+    vertx.executeBlocking(sshFuture->{
 
       try
       {
@@ -104,19 +104,19 @@ public class HostReachabilityChecker extends AbstractVerticle
 
         session.connect();
 
-        sshPromise.complete(true);
+        sshFuture.complete(true);
 
         session.disconnect();
 
       }
       catch (Exception exception)
       {
-        sshPromise.fail("Authentication Error!");
+        sshFuture.fail("Authentication Error!");
       }
 
-    },false,sshFuture->
+    },false,sshFutureRes->
     {
-      if(sshFuture.succeeded())
+      if(sshFutureRes.succeeded())
         message.reply("Discovered");
       else
         message.fail(1,"Authentication ERROR");
