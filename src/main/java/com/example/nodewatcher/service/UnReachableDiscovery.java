@@ -5,11 +5,13 @@ import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Promise;
 import io.vertx.core.eventbus.DeliveryOptions;
 import io.vertx.core.json.JsonObject;
+import io.vertx.core.json.impl.JsonUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class UnReachableDiscovery extends AbstractVerticle
 {
@@ -19,7 +21,8 @@ public class UnReachableDiscovery extends AbstractVerticle
 
   public UnReachableDiscovery()
   {
-    unreachedMonitors = new HashMap<>();
+    unreachedMonitors = new ConcurrentHashMap<>();
+    System.out.println("Class loaded");
   }
 
   @Override
@@ -46,6 +49,7 @@ public class UnReachableDiscovery extends AbstractVerticle
 
         while(unReachedMonitorsIterator.hasNext())
         {
+
           var device = unReachedMonitorsIterator.next().getValue();
 
           var data = new JsonObject();
@@ -54,7 +58,8 @@ public class UnReachableDiscovery extends AbstractVerticle
 
           vertx.eventBus().request(Address.PINGCHECK, data, new DeliveryOptions().setSendTimeout(3000), reply ->
           {
-            if (reply.succeeded())
+
+            if(reply.succeeded())
             {
 
               vertx.eventBus().send(Address.UPDATE_DISCOVERY, device);
