@@ -7,18 +7,19 @@ import io.vertx.core.eventbus.DeliveryOptions;
 import io.vertx.core.json.JsonObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 public class UnReachableDiscovery extends AbstractVerticle
 {
   private static final Logger log = LoggerFactory.getLogger(UnReachableDiscovery.class);
 
-  private final ConcurrentHashMap<String, JsonObject> unreachedMonitors;
+  private final Map<String, JsonObject> unreachedMonitors;
 
   public UnReachableDiscovery()
   {
-    unreachedMonitors = new ConcurrentHashMap<>();
+    unreachedMonitors = new HashMap<>();
   }
 
   @Override
@@ -41,26 +42,26 @@ public class UnReachableDiscovery extends AbstractVerticle
       if(!unreachedMonitors.isEmpty())
       {
 
-        for (Map.Entry<String, JsonObject> device : unreachedMonitors.entrySet())
-        {
+        var unReachedMonitorsIterator = unreachedMonitors.entrySet().iterator();
 
-          var value = device.getValue();
+        while(unReachedMonitorsIterator.hasNext())
+        {
+          var device = unReachedMonitorsIterator.next().getValue();
 
           var data = new JsonObject();
 
-          data.put("ip", value.getString("ip"));
+          data.put("ip", data.getString("ip"));
 
           vertx.eventBus().request(Address.PINGCHECK, data, new DeliveryOptions().setSendTimeout(3000), reply ->
           {
-
             if (reply.succeeded())
             {
 
-              vertx.eventBus().send(Address.UPDATE_DISCOVERY, value);
+              vertx.eventBus().send(Address.UPDATE_DISCOVERY, device);
 
-              log.info("Discovery in reach " + value.getString("ip"));
+              log.info("Discovery in reach " + device.getString("ip"));
 
-              unreachedMonitors.remove(value.getString("ip"));
+              unReachedMonitorsIterator.remove();
 
             }
             else
