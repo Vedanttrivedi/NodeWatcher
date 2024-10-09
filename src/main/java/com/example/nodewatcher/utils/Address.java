@@ -8,7 +8,11 @@ public class Address
 
   public final static String DUMPDB = "com.example.nodewatcher.dumpDB";
 
+  public final static String UPDATE_DISCOVERY = "com.example.nodewatcher.updateDiscovery";
+
   public final static String PLUGIN_DATA_SENDER = "com.example.nodewatcher.pluginDataSender";
+
+  public final static String UNREACHED_DISCOVERY = "com.example.nodewatcher.unreachedDiscovery";
 
   public final static String PUSH_SOCKET = "tcp://localhost:4555";
 
@@ -17,5 +21,7 @@ public class Address
   public final static int MEMORY_INTERVAL=20000;
 
   public final static int CPU_INTERVAL=35000;
+
+  public final static int UNREACHBILITY_TIMER=300000;//5 Minutes
 
 }

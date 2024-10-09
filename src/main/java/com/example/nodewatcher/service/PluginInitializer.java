@@ -2,7 +2,6 @@ package com.example.nodewatcher.service;
 
 import com.example.nodewatcher.BootStrap;
 import com.example.nodewatcher.utils.Address;
-import com.example.nodewatcher.utils.Config;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Promise;
 import io.vertx.core.eventbus.DeliveryOptions;
@@ -12,11 +11,7 @@ import io.vertx.sqlclient.Row;
 import io.vertx.sqlclient.RowSet;
 import io.vertx.sqlclient.SqlClient;
 import org.slf4j.LoggerFactory;
-import org.zeromq.ZContext;
 import  org.slf4j.*;
-
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 
 public class PluginInitializer extends AbstractVerticle
 {
@@ -35,11 +30,14 @@ public class PluginInitializer extends AbstractVerticle
   public void start(Promise<Void> startPromise) throws Exception
   {
 
-    vertx.eventBus().<JsonObject>localConsumer(Address.PLUGIN_DATA_SENDER, pluginSenderHandler->{
+    vertx.eventBus().<JsonObject>localConsumer(Address.UPDATE_DISCOVERY, pluginSenderHandler->{
+
+      System.out.println("Handler "+pluginSenderHandler.body());
 
       handleNewDeviceData(pluginSenderHandler.body());
 
     });
+
     startPromise.complete();
 
     fetchAndProcessDiscoveries();
@@ -91,24 +89,24 @@ public class PluginInitializer extends AbstractVerticle
 
     vertx.eventBus().request(Address.PINGCHECK, pingBody, new DeliveryOptions().setSendTimeout(3000), reply -> {
 
-      if (reply.succeeded())
+      var discoveryAndCredential = new JsonObject()
+        .put("discoveryName", row.getString(0))
+        .put("ip", row.getString(1))
+        .put("username", row.getString(2))
+        .put("password", row.getString(3));
+
+      if(reply.succeeded())
       {
-        System.out.println("Reply for ip "+ip+"\t"+reply.result());
+          discoveryAndCredential.put("doPolling",true);
 
-        var discoveryAndCredential = new JsonObject()
-          .put("discoveryName", row.getString(0))
-          .put("ip", row.getString(1))
-          .put("username", row.getString(2))
-          .put("password", row.getString(3))
-          .put("doPolling",true);
-
-         sendDataToPlugin(discoveryAndCredential);
-
+          sendDataToPlugin(discoveryAndCredential);
       }
       else
       {
-        System.out.println("Reply failed for ip "+ip+"\t"+reply.cause());
-          logger.info("Bootstrap : Device is Down "+ip);
+
+        vertx.eventBus().send(Address.UNREACHED_DISCOVERY,discoveryAndCredential);
+
+        logger.info("Bootstrap : Device is Down "+ip);
 
       }
 
@@ -126,9 +124,7 @@ public class PluginInitializer extends AbstractVerticle
 
     tempData.add(fetchDetails);
 
-    System.out.println("Sending "+tempData);
-
-    vertx.eventBus().send("send",tempData);
+    vertx.eventBus().send(Address.PLUGIN_DATA_SENDER,tempData);
 
   }
 

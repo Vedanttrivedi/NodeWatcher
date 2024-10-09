@@ -11,6 +11,7 @@ import org.zeromq.ZContext;
 import org.zeromq.ZMQ;
 
 import java.util.Base64;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class PluginDataSender extends AbstractVerticle
 {
@@ -34,7 +35,7 @@ public class PluginDataSender extends AbstractVerticle
   @Override
   public void start(Promise<Void> startPromise)
   {
-       vertx.eventBus().<JsonArray>localConsumer("send", handler->{
+       vertx.eventBus().<JsonArray>localConsumer(Address.PLUGIN_DATA_SENDER, handler->{
 
           send(handler.body());
 
@@ -53,7 +54,7 @@ public class PluginDataSender extends AbstractVerticle
       while(!status)
       {
 
-        log.error("Polling failed ! Plugin is down");
+        //log.error("Polling failed ! Plugin is down");
 
         status = socket.send(encodedData,ZMQ.DONTWAIT);
 

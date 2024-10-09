@@ -233,7 +233,7 @@ public class DiscoveryRoutes extends AbstractVerticle
                     discoveryAndCredentialBody.put("doPolling",doProvision);
 
 
-                    vertx.eventBus().send(Address.PLUGIN_DATA_SENDER,discoveryAndCredentialBody);
+                    vertx.eventBus().send(Address.UPDATE_DISCOVERY,discoveryAndCredentialBody);
 
                   });
 

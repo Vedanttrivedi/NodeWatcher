@@ -43,6 +43,8 @@ public class BootStrap
     .compose(deploymentId->vertx.deployVerticle(PluginDataSaver.class.getName(),
       new DeploymentOptions().setInstances(Config.DATA_SAVER_INSTANCES)))
 
+    .compose(deploymentId->vertx.deployVerticle(new UnReachableDiscovery()))
+
     .onComplete(deploymentResult->{
 
         if(deploymentResult.succeeded())
