@@ -22,7 +22,6 @@ public class UnReachableDiscovery extends AbstractVerticle
   public UnReachableDiscovery()
   {
     unreachedMonitors = new ConcurrentHashMap<>();
-    System.out.println("Class loaded");
   }
 
   @Override
@@ -45,16 +44,12 @@ public class UnReachableDiscovery extends AbstractVerticle
       if(!unreachedMonitors.isEmpty())
       {
 
-        var unReachedMonitorsIterator = unreachedMonitors.entrySet().iterator();
-
-        while(unReachedMonitorsIterator.hasNext())
+        unreachedMonitors.forEach((ip,device)->
         {
-
-          var device = unReachedMonitorsIterator.next().getValue();
 
           var data = new JsonObject();
 
-          data.put("ip", data.getString("ip"));
+          data.put("ip", ip);
 
           vertx.eventBus().request(Address.PINGCHECK, data, new DeliveryOptions().setSendTimeout(3000), reply ->
           {
@@ -66,7 +61,7 @@ public class UnReachableDiscovery extends AbstractVerticle
 
               log.info("Discovery in reach " + device.getString("ip"));
 
-              unReachedMonitorsIterator.remove();
+              unreachedMonitors.remove(ip);
 
             }
             else
@@ -76,7 +71,7 @@ public class UnReachableDiscovery extends AbstractVerticle
 
             }
           });
-        }
+        });
       }
 
       else

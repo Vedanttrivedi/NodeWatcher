@@ -22,6 +22,6 @@ public class Address
 
   public final static int CPU_INTERVAL=35000;
 
-  public final static int UNREACHBILITY_TIMER=300000;//5 Minutes
+  public final static int UNREACHBILITY_TIMER=30000;//5 Minutes
 
 }
