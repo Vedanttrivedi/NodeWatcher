@@ -20,8 +20,6 @@ public class PluginDataSender extends AbstractVerticle
 
   private Boolean pollStarted;
 
-  private JsonArray data;
-
   public PluginDataSender(ZContext context)
   {
 
@@ -31,8 +29,6 @@ public class PluginDataSender extends AbstractVerticle
 
     socket.bind(Address.PUSH_SOCKET);
 
-    data = new JsonArray();
-
   }
 
   @Override
@@ -40,16 +36,14 @@ public class PluginDataSender extends AbstractVerticle
   {
        vertx.eventBus().<JsonArray>localConsumer("send", handler->{
 
-          this.data = handler.body();
-
-          send();
+          send(handler.body());
 
        });
 
        startPromise.complete();
 
   }
-  private void send()
+  private void send(JsonArray data)
   {
 
       var encodedData = Base64.getEncoder().encode(data.encode().getBytes());
