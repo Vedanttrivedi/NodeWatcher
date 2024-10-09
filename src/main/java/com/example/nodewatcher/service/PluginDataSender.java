@@ -36,7 +36,7 @@ public class PluginDataSender extends AbstractVerticle
   public void start(Promise<Void> startPromise)
   {
        vertx.eventBus().<JsonArray>localConsumer(Address.PLUGIN_DATA_SENDER, handler->{
-
+         System.out.println("Sending "+handler.body());
           send(handler.body());
 
        });
@@ -51,16 +51,7 @@ public class PluginDataSender extends AbstractVerticle
 
       var status = socket.send(encodedData,ZMQ.DONTWAIT);
 
-      while(!status)
-      {
-
-        //log.error("Polling failed ! Plugin is down");
-
-        status = socket.send(encodedData,ZMQ.DONTWAIT);
-
-      }
-
-      if(!pollStarted)
+      if(!pollStarted && status)
       {
         vertx.eventBus().send("poll","Start Polling");
 

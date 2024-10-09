@@ -46,7 +46,6 @@ public class DataPoll extends AbstractVerticle
 
       if (currentTime - lastMemoryPoll >= Address.MEMORY_INTERVAL)
       {
-          System.out.println("Memory polling "+ LocalDateTime.now().toString());
 
           var data = new JsonObject();
 
@@ -56,7 +55,7 @@ public class DataPoll extends AbstractVerticle
 
           jsonArray.add(data);
 
-          vertx.eventBus().send("send",jsonArray);
+          vertx.eventBus().send(Address.PLUGIN_DATA_SENDER,jsonArray);
 
           lastMemoryPoll = currentTime;
 
@@ -64,8 +63,6 @@ public class DataPoll extends AbstractVerticle
 
       if (currentTime - lastCpuPoll >= Address.CPU_INTERVAL)
       {
-
-          System.out.println("Cpu polling "+ LocalDateTime.now().toString());
 
           var data = new JsonObject();
 
@@ -75,7 +72,7 @@ public class DataPoll extends AbstractVerticle
 
           jsonArray.add(data);
 
-          vertx.eventBus().send("send",jsonArray);
+          vertx.eventBus().send(Address.PLUGIN_DATA_SENDER,jsonArray);
 
           lastCpuPoll = currentTime;
 

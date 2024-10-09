@@ -93,11 +93,11 @@ public class PluginInitializer extends AbstractVerticle
         .put("discoveryName", row.getString(0))
         .put("ip", row.getString(1))
         .put("username", row.getString(2))
-        .put("password", row.getString(3));
+        .put("password", row.getString(3))
+        .put("doPolling",true);
 
       if(reply.succeeded())
       {
-          discoveryAndCredential.put("doPolling",true);
 
           sendDataToPlugin(discoveryAndCredential);
       }

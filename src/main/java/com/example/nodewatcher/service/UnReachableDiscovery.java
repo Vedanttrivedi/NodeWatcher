@@ -56,8 +56,6 @@ public class UnReachableDiscovery extends AbstractVerticle
             if (reply.succeeded())
             {
 
-              value.put("isPolling", true);
-
               vertx.eventBus().send(Address.UPDATE_DISCOVERY, value);
 
               log.info("Discovery in reach " + value.getString("ip"));
