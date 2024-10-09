@@ -38,7 +38,6 @@ public class PluginDataReceiver extends Thread
 
         if (message != null)
         {
-
           vertx.eventBus().send(Address.DUMPDB, message);
 
         }

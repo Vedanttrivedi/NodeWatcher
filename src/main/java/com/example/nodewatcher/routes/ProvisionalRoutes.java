@@ -2,102 +2,70 @@ package com.example.nodewatcher.routes;
 
 import com.example.nodewatcher.BootStrap;
 import com.example.nodewatcher.db.MetricDB;
-import io.vertx.core.AbstractVerticle;
-import io.vertx.core.Promise;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
-import io.vertx.ext.web.handler.BodyHandler;
-import io.vertx.sqlclient.SqlClient;
-
-public class ProvisionalRoutes extends AbstractVerticle
+public class ProvisionalRoutes
 {
 
-  private final MetricDB provisionDB = new MetricDB();
-  private Router router;
-  private SqlClient sqlClient;
+  private final MetricDB provisionDB;
+
+  private final Router router;
 
   public ProvisionalRoutes(Router router)
   {
     this.router = router;
-    this.sqlClient = BootStrap.getDatabaseClient();
-  }
 
-  @Override
-  public void start(Promise<Void> startPromise) throws Exception
-  {
-    attach();
-    startPromise.complete();
+    provisionDB = new MetricDB(BootStrap.getDatabaseClient());
+
   }
 
   public void attach()
   {
     router.get("/discovery/memory/:discoveryName")
-      .handler(ctx -> getMemoryMetrics(ctx, sqlClient));
+      .handler(this::getMemoryMetrics);
 
     router.get("/discovery/memory/:discoveryName/:n")
-      .handler(ctx -> getMemoryMetricsLastN(ctx, sqlClient));
+      .handler(this::getMemoryMetricsLastN);
 
     router.get("/discovery/cpu/:discoveryName")
-      .handler(ctx -> getCPUMetrics(ctx, sqlClient));
+      .handler(this::getCPUMetrics);
 
     router.get("/discovery/cpu/:discoveryName/:n")
-      .handler(ctx -> getCPUMetricsLastN(ctx, sqlClient));
+      .handler(this::getCPUMetricsLastN);
 
     router.get("/discovery/cpu/:discoveryName/aggr")
 
-      .handler(ctx -> getMemoryMetricsAggr(ctx, sqlClient));
+      .handler(this::getMemoryMetricsAggr);
 
   }
-  private void getMemoryMetricsAggr(RoutingContext ctx, SqlClient sqlClient)
+  private void getMemoryMetricsAggr(RoutingContext ctx)
   {
 
     var aggr  = ctx.request().getParam("aggr");
 
     var metricName = ctx.request().getParam("metric");
 
-    vertx.executeBlocking(promise ->
-    {
-      provisionDB.getMemoryMetricsAggr(sqlClient, aggr,metricName)
-        .onSuccess(metrics -> promise.complete(metrics.encodePrettily()))
+    provisionDB.getMemoryMetricsAggr( aggr,metricName)
 
-        .onFailure(err -> promise.fail("Error while fetching data "));
+    .onSuccess(metrics -> ctx.response().end(metrics.encodePrettily()))
 
-    }, future ->
-    {
-
-      if (future.succeeded())
-        ctx.response().end(future.result().toString());
-      else
-        ctx.response().end(future.cause().getMessage());
-
-    });
+    .onFailure(err -> ctx.response().end("Error while fetching data "));
 
   }
 
-  private void getMemoryMetrics(RoutingContext ctx, SqlClient sqlClient)
+  private void getMemoryMetrics(RoutingContext ctx)
   {
     var discoveryName = ctx.pathParam("discoveryName");
 
-    vertx.executeBlocking(promise ->
-    {
-      provisionDB.getMemoryMetrics(sqlClient, discoveryName)
-        .onSuccess(metrics -> promise.complete(metrics.encodePrettily()))
+    provisionDB.getMemoryMetrics(discoveryName)
 
-        .onFailure(err -> promise.fail("Error while fetching data "));
+    .onSuccess(metrics -> ctx.response().end(metrics.encodePrettily()))
 
-    }, future ->
-    {
-
-      if (future.succeeded())
-        ctx.response().end(future.result().toString());
-      else
-        ctx.response().end(future.cause().getMessage());
-
-    });
+    .onFailure(err -> ctx.response().end("Error while fetching data "));
 
   }
 
-  private void getMemoryMetricsLastN(RoutingContext ctx, SqlClient sqlClient)
+  private void getMemoryMetricsLastN(RoutingContext ctx)
   {
 
     try
@@ -107,24 +75,12 @@ public class ProvisionalRoutes extends AbstractVerticle
 
       var n = ctx.pathParam("n");
 
-      vertx.executeBlocking(promise ->
-      {
+      provisionDB.getMemoryMetricsLastN(discoveryName, Integer.parseInt(n))
 
-        provisionDB.getMemoryMetricsLastN(sqlClient, discoveryName, Integer.parseInt(n))
-          .onSuccess(metrics -> promise.complete(metrics.encodePrettily()))
-          .onFailure(err -> promise.fail(err.getMessage()));
+      .onSuccess(metrics -> ctx.response().end(metrics.encodePrettily()))
 
+      .onFailure(err -> ctx.response().end(err.getMessage()));
 
-      }, future ->
-      {
-
-        if (future.succeeded())
-          ctx.response().end(future.result().toString());
-
-        else
-          ctx.response().end(future.cause().toString());
-
-      });
     }
 
     catch (Exception exception)
@@ -134,32 +90,28 @@ public class ProvisionalRoutes extends AbstractVerticle
 
   }
 
-  private void getCPUMetrics(RoutingContext ctx, SqlClient sqlClient)
+  private void getCPUMetrics(RoutingContext ctx)
   {
     var discoveryName = ctx.pathParam("discoveryName");
 
-    vertx.executeBlocking(promise ->
+    try
     {
-      provisionDB.getCPUMetrics(sqlClient, discoveryName)
+      provisionDB.getCPUMetrics(discoveryName)
 
-        .onSuccess(metrics -> promise.complete(metrics.encodePrettily()))
+      .onSuccess(metrics -> ctx.response().end(metrics.encodePrettily()))
 
-        .onFailure(err -> promise.fail("Error while fetching data "));
+      .onFailure(err -> ctx.response().end("Error while fetching data "));
 
-    }, future ->
+    }
+    catch (Exception exception)
     {
+      ctx.response().end("Error "+exception.getMessage());
+    }
 
-      if (future.succeeded())
-        ctx.response().end(future.result().toString());
-      else
-        ctx.response().end(future.cause().getMessage());
-
-    });
   }
 
-  private void getCPUMetricsLastN(RoutingContext ctx, SqlClient sqlClient)
+  private void getCPUMetricsLastN(RoutingContext ctx)
   {
-
     try
     {
 
@@ -167,24 +119,12 @@ public class ProvisionalRoutes extends AbstractVerticle
 
       var n = ctx.pathParam("n");
 
-      vertx.executeBlocking(promise ->
-      {
+      provisionDB.getCPUMetricsLastN(discoveryName, Integer.parseInt(n))
 
-        provisionDB.getCPUMetricsLastN(sqlClient, discoveryName, Integer.parseInt(n))
-          .onSuccess(metrics -> promise.complete(metrics.encodePrettily()))
-          .onFailure(err -> promise.fail(err.getMessage()));
+      .onSuccess(metrics -> ctx.response().end(metrics.encodePrettily()))
 
+      .onFailure(err -> ctx.response().end(err.getMessage()));
 
-      }, future ->
-      {
-
-        if (future.succeeded())
-          ctx.response().end(future.result().toString());
-
-        else
-          ctx.response().end(future.cause().toString());
-
-      });
     }
 
     catch (Exception exception)

@@ -58,7 +58,7 @@ public class DataPoll extends AbstractVerticle
 
           vertx.eventBus().send("send",jsonArray);
 
-          lastMemoryPoll = currentTime; // Update last memory poll time
+          lastMemoryPoll = currentTime;
 
       }
 
@@ -77,7 +77,7 @@ public class DataPoll extends AbstractVerticle
 
           vertx.eventBus().send("send",jsonArray);
 
-          lastCpuPoll = currentTime; // Update last CPU poll time
+          lastCpuPoll = currentTime;
 
       }
 

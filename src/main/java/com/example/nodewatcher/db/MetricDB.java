@@ -14,7 +14,14 @@ import java.sql.Timestamp;
 
 public class MetricDB
 {
-  public static Future<Boolean> saveMemory(SqlClient sqlClient, Memory_Metric memoryMetric, Timestamp timestamp)
+  private SqlClient sqlClient;
+
+  public MetricDB(SqlClient sqlClient)
+  {
+    this.sqlClient =sqlClient;
+  }
+
+  public Future<Boolean> saveMemory(Memory_Metric memoryMetric, Timestamp timestamp)
   {
     Promise<Boolean> promise = Promise.promise();
 
@@ -58,7 +65,7 @@ public class MetricDB
       });
     return  promise.future();
   }
-  public static Future<Boolean> saveCpu(SqlClient sqlClient, Cpu_Metric cpuMetric, Timestamp timestamp)
+  public  Future<Boolean> saveCpu(Cpu_Metric cpuMetric, Timestamp timestamp)
   {
     Promise<Boolean> promise = Promise.promise();
 
@@ -87,7 +94,6 @@ public class MetricDB
 
                 if(result.succeeded())
                 {
-                  //System.out.println("Rows Added in CPU DB ");
                   promise.complete();
                 }
                 else
@@ -106,7 +112,7 @@ public class MetricDB
     return promise.future();
   }
 
-  public Future<JsonArray> getMemoryMetrics(SqlClient sqlClient, String discoveryName)
+  public Future<JsonArray> getMemoryMetrics(String discoveryName)
   {
 
     var query = "SELECT m.* FROM Memory_Metric m " +
@@ -138,7 +144,7 @@ public class MetricDB
   }
 
 
-  public Future<JsonArray> getMemoryMetricsAggr(SqlClient sqlClient,String aggr,String metricName)
+  public Future<JsonArray> getMemoryMetricsAggr(String aggr,String metricName)
   {
 
     var query = "SELECT created_at,"+aggr+"(?) FROM Memory_Metric";
@@ -162,7 +168,7 @@ public class MetricDB
       });
   }
 
-  public Future<JsonArray> getMemoryMetricsLastN(SqlClient sqlClient, String discoveryName, int n)
+  public Future<JsonArray> getMemoryMetricsLastN(String discoveryName, int n)
   {
 
 
@@ -198,7 +204,7 @@ public class MetricDB
         return metricsArray;
       });
   }
-  public Future<JsonArray> getCPUMetrics(SqlClient sqlClient, String discoveryName)
+  public Future<JsonArray> getCPUMetrics(String discoveryName)
   {
 
     var query = "SELECT m.* FROM CPU_Metric m " +
@@ -222,7 +228,7 @@ public class MetricDB
         return metricsArray;
       });
   }
-  public Future<JsonArray> getCPUMetricsLastN(SqlClient sqlClient, String discoveryName, int n)
+  public Future<JsonArray> getCPUMetricsLastN(String discoveryName, int n)
   {
 
 

@@ -2,49 +2,25 @@ package com.example.nodewatcher.routes;
 
 import com.example.nodewatcher.BootStrap;
 import com.example.nodewatcher.db.CredentialDB;
-import com.example.nodewatcher.db.DiscoveryDB;
 import com.example.nodewatcher.models.Credential;
-import com.example.nodewatcher.service.PluginDataSaver;
-import io.vertx.core.AbstractVerticle;
-import io.vertx.core.Future;
-import io.vertx.core.Promise;
-import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.BodyHandler;
 import io.vertx.ext.web.handler.TimeoutHandler;
-import io.vertx.sqlclient.SqlClient;
-import org.slf4j.LoggerFactory;
-
 import java.time.LocalDateTime;
-import java.util.AbstractCollection;
 
-public class CredentialsRoutes extends AbstractVerticle
+public class CredentialsRoutes
 {
 
-  private final CredentialDB credentialDB = new CredentialDB();
+  private final CredentialDB credentialDB;
 
   private final Router router;
-
-  private SqlClient sqlClient;
-
-  private static final org.slf4j.Logger logger = LoggerFactory.getLogger(PluginDataSaver.class);
 
   public CredentialsRoutes(Router router)
   {
     this.router = router;
 
-    this.sqlClient = BootStrap.getDatabaseClient();
-
-  }
-
-  @Override
-  public void start(Promise<Void> startPromise) throws Exception
-  {
-    attach();
-
-    startPromise.complete();
-
+    credentialDB = new CredentialDB(BootStrap.getDatabaseClient());
   }
 
   public void attach()
@@ -54,32 +30,32 @@ public class CredentialsRoutes extends AbstractVerticle
 
       .handler(TimeoutHandler.create(5000))
       .handler(BodyHandler.create())
-      .handler(ctx -> createCredential(ctx, sqlClient));
+      .handler(this::createCredential);
 
     router.get("/credential/get/")
       .handler(TimeoutHandler.create(5000))
-      .handler(ctx -> getAllCredential(ctx, sqlClient));
+      .handler(this::getAllCredential);
 
 
     router.get("/credential/get/:name")
       .handler(TimeoutHandler.create(5000))
-      .handler(ctx -> getCredential(ctx, sqlClient));
+      .handler(this::getCredential);
 
 
     router.put("/credential/update/:name")
 
       .handler(TimeoutHandler.create(5000))
       .handler(BodyHandler.create())
-      .handler(ctx -> updateCredential(ctx, sqlClient));
+      .handler(this::updateCredential);
 
     router.delete("/credential/delete/:name")
       .handler(TimeoutHandler.create(4000))
-      .handler(ctx -> deleteCredential(ctx, sqlClient));
+      .handler(this::deleteCredential);
 
   }
 
 
-  private void createCredential(RoutingContext context, SqlClient sqlClient)
+  private void createCredential(RoutingContext context)
   {
 
     var name = context.request().getFormAttribute("name");
@@ -105,91 +81,56 @@ public class CredentialsRoutes extends AbstractVerticle
       return;
     }
 
-    vertx.executeBlocking(future->{
+    credentialDB.save(
+      new Credential(name, username, password, LocalDateTime.now().toString(), 1))
 
-      credentialDB.save(sqlClient,
-        new Credential(name, username, password, LocalDateTime.now().toString(), 1))
-
-        .onSuccess(success->{
-
-          future.complete();
-
-        })
-        .onFailure(failure->{
-
-          future.fail("Credentials already present ");
-        });
-
-    },futureRes->{
-
-      if(futureRes.succeeded())
+      .onSuccess(success->{
         context.response().end("Credentials Added");
-      else
-        context.response().end(futureRes.cause().toString());
-    });
+
+      })
+      .onFailure(failure->{
+        context.response().end("Credentials already present");
+
+      });
 
   }
 
-  private void getCredential(RoutingContext context, SqlClient sqlClient)
+  private void getCredential(RoutingContext context)
   {
     var name = context.pathParam("name").trim();
 
     if (name.length() <= 0)
       context.response().end("Error");
 
-    System.out.println("For Param " + name);
 
-    vertx.executeBlocking(future->{
+    credentialDB.getCredential(name)
+      .onFailure(failureHandler -> {
 
-      credentialDB.getCredential(sqlClient, name)
-        .onFailure(failureHandler -> {
+        context.response().end(failureHandler.getCause().toString());
 
-          future.fail(failureHandler.getCause().toString());
+      }).
+      onSuccess(successHandler -> {
+        context.response().end(successHandler.encodePrettily());
 
-        }).
-        onSuccess(successHandler -> {
+      });
 
-          future.complete(successHandler.encodePrettily());
-
-        });
-
-    },futureRes->{
-
-      if(futureRes.failed())
-        context.response().end(futureRes.cause().toString());
-      else
-        context.response().end(futureRes.result().toString());
-
-    });
   }
 
-  // Method to retrieve all credentials
-  private void getAllCredential(RoutingContext context, SqlClient sqlClient)
+  private void getAllCredential(RoutingContext context)
   {
-    vertx.executeBlocking(future->{
-
-      credentialDB.getCredential(sqlClient)
+    credentialDB.getCredential()
 
         .onFailure(failureHandler ->
         {
-          future.fail(failureHandler.getCause().toString());
+          context.response().end(failureHandler.getCause().toString());
         })
         .onSuccess(successHandler -> {
-          future.complete(successHandler.encodePrettily());
+          context.response().end(successHandler.encodePrettily());
         });
 
-    },futureRes->{
-
-      if(futureRes.failed())
-        context.response().end("Something went wrong! " + futureRes.cause().toString());
-      else
-        context.response().end(futureRes.result().toString());
-
-    });
   }
 
-  // Method to update a credential by name
-  private void updateCredential(RoutingContext context, SqlClient sqlClient) {
+  private void updateCredential(RoutingContext context) {
 
     var name = context.pathParam("name");
 
@@ -205,7 +146,7 @@ public class CredentialsRoutes extends AbstractVerticle
     if (password.length() < 8)
       context.response().end("password length must be 8 characters");
 
-    credentialDB.updateCredential(sqlClient, name,
+    credentialDB.updateCredential(name,
         new Credential(newName, username, password, LocalDateTime.now().toString(), 1))
 
       .onSuccess(successHandler -> {
@@ -221,39 +162,24 @@ public class CredentialsRoutes extends AbstractVerticle
 
   }
 
-  private void deleteCredential(RoutingContext context, SqlClient sqlClient)
+  private void deleteCredential(RoutingContext context)
   {
 
     var name = context.pathParam("name");
 
-    vertx.executeBlocking(future->{
+    credentialDB.deleteCredential(name)
 
-      credentialDB.deleteCredential(sqlClient, name)
+    .onSuccess(successHandler -> {
 
-        .onSuccess(successHandler -> {
+        context.response().end("Credential Deleted ");
+      })
 
-          System.out.println("Success Result : " + successHandler);
+    .onFailure(failureHandler -> {
 
-          future.complete("Credential Deleted ");
-        })
+        context.response().end("Credential not found!");
 
-        .onFailure(failureHandler -> {
+      });
 
-          System.out.println("failure Result " + failureHandler.getMessage());
-
-          future.fail("Credential not found!");
-
-        });
-
-    },futureRes->{
-
-      if(futureRes.failed())
-      {
-        context.response().end(futureRes.cause().toString());
-      }
-      else
-        context.response().end(futureRes.result().toString());
-    });
   }
 
 }

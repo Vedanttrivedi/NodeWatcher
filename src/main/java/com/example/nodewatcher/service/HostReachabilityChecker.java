@@ -71,7 +71,7 @@ public class HostReachabilityChecker extends AbstractVerticle
       }
       else
       {
-        message.reply("Device not in reach!");
+        message.fail(1,"Device not in reach!");
       }
     });
 

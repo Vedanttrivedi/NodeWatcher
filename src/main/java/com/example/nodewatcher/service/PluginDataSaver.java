@@ -1,7 +1,6 @@
 package com.example.nodewatcher.service;
 
 import com.example.nodewatcher.BootStrap;
-import com.example.nodewatcher.db.DatabaseClient;
 import com.example.nodewatcher.db.MetricDB;
 import com.example.nodewatcher.models.Cpu_Metric;
 import com.example.nodewatcher.models.Memory_Metric;
@@ -9,7 +8,6 @@ import com.example.nodewatcher.utils.Address;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Promise;
 import io.vertx.core.json.JsonObject;
-import io.vertx.sqlclient.SqlClient;
 import org.slf4j.*;
 import org.zeromq.ZMQ;
 import java.sql.Timestamp;
@@ -20,115 +18,74 @@ import java.util.Base64;
 
 public class PluginDataSaver extends AbstractVerticle
 {
-
   private static final Logger logger = LoggerFactory.getLogger(PluginDataSaver.class);
 
-  private static SqlClient sqlClient;
+  private final MetricDB metricDB;
 
   public PluginDataSaver()
   {
 
-    sqlClient = BootStrap.getDatabaseClient();
+    metricDB = new MetricDB(BootStrap.getDatabaseClient());
 
   }
 
   @Override
   public void start(Promise<Void> startPromise) throws Exception
   {
-
     vertx.eventBus().<String>localConsumer(Address.DUMPDB,handler->{
 
-      try
-        {
+    try
+    {
+      var decodedBase64Data = Base64.getDecoder().decode(handler.body());
 
-          var decodedBase64Data = Base64.getDecoder().decode(handler.body());
+      var device = new JsonObject(new String(decodedBase64Data, ZMQ.CHARSET));
 
-          var device = new JsonObject(new String(decodedBase64Data, ZMQ.CHARSET));
+      var localDateTime = LocalDateTime.parse(device.getString("time"), DateTimeFormatter.ISO_LOCAL_DATE_TIME);
 
-              var devicesInfo  = (JsonObject) device;
+      var timestamp = Timestamp.valueOf(localDateTime);
 
-              if(devicesInfo.getString("metric").equals("memory"))
-              {
+      if(device.getBoolean("status"))
+      {
 
-                if(devicesInfo.getBoolean("status"))
-                {
-                  var memory_metric = Memory_Metric.fromJson(device);
+          if(device.getString("metric").equals("memory"))
+          {
+            var memory_metric = Memory_Metric.fromJson(device);
 
-                  var localDateTime = LocalDateTime.parse(devicesInfo.getString("time"), DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+            metricDB.saveMemory(memory_metric,timestamp)
+            .onComplete(result->
+            {
+                if(result.failed())
+                  System.out.println("Db insertion error");
+            });
 
-                  var timestamp = Timestamp.valueOf(localDateTime);
+          }
 
-                  vertx.executeBlocking(saveInDbFuture-> {
+          else
+          {
+            var cpuMetric = Cpu_Metric.fromJson(device);
 
+            metricDB.saveCpu(cpuMetric,timestamp)
+            .onComplete(dbResult->
+            {
+              if (dbResult.failed())
+                System.out.println("Dn error failed");
+            });
 
-                    MetricDB.saveMemory(sqlClient,memory_metric,timestamp)
-                      .onComplete(result->
-                      {
-                          if(result.succeeded())
-                            saveInDbFuture.complete();
-                          else
-                            saveInDbFuture.fail("DB Insertion error ");
-                      });
+          }
+      }
+      else
+      {
+          logger.error("Device Credential Or Network Issue "+device);
+      }
 
-                  },saveInDbFutureRes->{
+    }
 
-                    if(saveInDbFutureRes.failed())
-                        logger.error("DB(Memory) Save error "+saveInDbFutureRes.cause());
+    catch (Exception exception)
+    {
+      logger.error("Error",exception.getMessage());
+    }
 
-                  });
-                }
-                else
-                {
-                  logger.error("Device Credential Or Network Issue "+device);
-
-                }
-
-              }
-              else if(devicesInfo.getString("metric").equals("cpu"))
-              {
-
-                if(devicesInfo.getBoolean("status"))
-                {
-                  var cpuMetric = Cpu_Metric.fromJson((JsonObject) device);
-
-                  var localDateTime = LocalDateTime.parse(devicesInfo.getString("time"), DateTimeFormatter.ISO_LOCAL_DATE_TIME);
-
-                  var timestamp = Timestamp.valueOf(localDateTime);
-
-                  vertx.executeBlocking(saveInDbPromise-> {
-
-                    MetricDB.saveCpu(sqlClient,cpuMetric,timestamp).
-                      onComplete(dbResult->{
-
-                        if(dbResult.succeeded())
-                          saveInDbPromise.complete();
-                        else
-                          saveInDbPromise.fail(dbResult.cause());
-
-                      });
-
-                  },saveInDbFuture->{
-
-                    if(saveInDbFuture.failed())
-                      logger.error("DB(CPU) Save error "+saveInDbFuture.cause());
-
-                  });
-
-                }
-                else
-                {
-                  logger.error("Device Credential Or Network Issue "+device);
-
-                }
-              }
-
-        }
-        catch (Exception exception)
-        {
-          logger.error("error ",exception.getMessage());
-        }
-
-    });
+  });
 
     startPromise.complete();
 

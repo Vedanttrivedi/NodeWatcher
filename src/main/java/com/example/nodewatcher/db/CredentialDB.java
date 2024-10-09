@@ -20,11 +20,17 @@ import java.util.Base64;
 public class CredentialDB
 {
 
-  public Future<Void> save(SqlClient sqlClient, Credential credential)
+  private final SqlClient sqlClient;
+
+  public CredentialDB(SqlClient sqlClient)
   {
-    String query = "INSERT INTO Credentials (name, username, password, protocol) VALUES (?, ?, ?, ?)";
+    this.sqlClient = sqlClient;
+  }
 
 
+  public Future<Void> save( Credential credential)
+  {
+    var query = "INSERT INTO Credentials (name, username, password, protocol) VALUES (?, ?, ?, ?)";
 
     return sqlClient.preparedQuery(query)
       .execute(Tuple.of(credential.name(), credential.username(), credential.password() , credential.protocol()))
@@ -32,9 +38,9 @@ public class CredentialDB
 
   }
 
-  public Future<JsonObject> getCredential(SqlClient sqlClient, String name)
+  public Future<JsonObject> getCredential( String name)
   {
-    String query = "SELECT * FROM Credentials WHERE name = ?";
+    var query = "SELECT * FROM Credentials WHERE name = ?";
 
     return sqlClient.preparedQuery(query)
       .execute(Tuple.of(name))
@@ -50,7 +56,7 @@ public class CredentialDB
       });
   }
 
-  public Future<JsonArray> getCredential(SqlClient sqlClient)
+  public Future<JsonArray> getCredential()
   {
     var query = "SELECT * FROM Credentials";
 
@@ -80,7 +86,7 @@ public class CredentialDB
 
 
   // Delete a credential by ID
-  public Future<Boolean> deleteCredential(SqlClient sqlClient, String name)
+  public Future<Boolean> deleteCredential(String name)
   {
     var query = "DELETE FROM Credentials WHERE name = ?";
 
@@ -91,7 +97,7 @@ public class CredentialDB
 
   }
 
-  public Future<Void> updateCredential(SqlClient sqlClient, String name,Credential credential) {
+  public Future<Void> updateCredential(String name,Credential credential) {
     String query = "UPDATE Credentials SET name = ?, username = ?, password = ?, protocol = ? WHERE name = ?";
 
     return sqlClient

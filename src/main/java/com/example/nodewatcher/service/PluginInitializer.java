@@ -54,34 +54,23 @@ public class PluginInitializer extends AbstractVerticle
   private void fetchAndProcessDiscoveries()
   {
 
-    vertx.executeBlocking(future->{
+    sqlClient.query("SELECT d.name, d.ip, c.username, c.password, c.protocol " +
+        "FROM Discovery d JOIN Credentials c ON d.credentialID = c.id WHERE d.is_provisioned = true")
+      .execute()
 
-      sqlClient.query("SELECT d.name, d.ip, c.username, c.password, c.protocol " +
-          "FROM Discovery d JOIN Credentials c ON d.credentialID = c.id WHERE d.is_provisioned = true")
-        .execute()
+      .onComplete(result -> {
 
-        .onComplete(result -> {
+        if (result.succeeded())
+        {
+          processDiscoveryResults(result.result());
+        }
+        else
+        {
+          System.out.println("Error while fetching data!");
+        }
 
-          if (result.succeeded())
-          {
-            future.complete(result.result());
-          }
-          else
-          {
-            future.fail("Error Fetching Details ");
-          }
+      });
 
-        });
-
-    },futureRes->{
-
-      if(futureRes.succeeded())
-        processDiscoveryResults((RowSet<Row>) futureRes.result());
-
-      else
-        System.out.println("Cannot fetch");
-
-    });
   }
 
   private void processDiscoveryResults(RowSet<Row> rows)
@@ -104,6 +93,7 @@ public class PluginInitializer extends AbstractVerticle
 
       if (reply.succeeded())
       {
+        System.out.println("Reply for ip "+ip+"\t"+reply.result());
 
         var discoveryAndCredential = new JsonObject()
           .put("discoveryName", row.getString(0))
@@ -113,9 +103,11 @@ public class PluginInitializer extends AbstractVerticle
           .put("doPolling",true);
 
          sendDataToPlugin(discoveryAndCredential);
+
       }
       else
       {
+        System.out.println("Reply failed for ip "+ip+"\t"+reply.cause());
           logger.info("Bootstrap : Device is Down "+ip);
 
       }
@@ -133,6 +125,8 @@ public class PluginInitializer extends AbstractVerticle
     tempData.add(data);
 
     tempData.add(fetchDetails);
+
+    System.out.println("Sending "+tempData);
 
     vertx.eventBus().send("send",tempData);
 
