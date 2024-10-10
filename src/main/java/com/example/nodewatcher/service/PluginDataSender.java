@@ -47,9 +47,7 @@ public class PluginDataSender extends AbstractVerticle
   private void send(JsonArray data)
   {
 
-      var encodedData = Base64.getEncoder().encode(data.encode().getBytes());
-
-      var status = socket.send(encodedData,ZMQ.DONTWAIT);
+      var status = socket.send(data.encode().getBytes(),ZMQ.DONTWAIT);
 
       if(!pollStarted && status)
       {

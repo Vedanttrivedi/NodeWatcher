@@ -36,9 +36,8 @@ public class PluginDataSaver extends AbstractVerticle
 
     try
     {
-      var decodedBase64Data = Base64.getDecoder().decode(handler.body());
 
-      var device = new JsonObject(new String(decodedBase64Data, ZMQ.CHARSET));
+      var device = new JsonObject(new String(handler.body().getBytes()));
 
       var localDateTime = LocalDateTime.parse(device.getString("time"), DateTimeFormatter.ISO_LOCAL_DATE_TIME);
 
