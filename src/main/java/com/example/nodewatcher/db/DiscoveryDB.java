@@ -20,42 +20,7 @@ public class DiscoveryDB
     this.sqlClient = sqlClient;
   }
 
-  public Future<JsonObject> findCredential(String credentialName)
-  {
-    Promise<JsonObject> promise = Promise.promise();
 
-    sqlClient.preparedQuery("SELECT id,username,password FROM Credentials WHERE name = ?")
-      .execute(Tuple.of(credentialName.trim()))
-      .onSuccess(rows -> {
-        if (rows.size() > 0)
-        {
-
-          var credentialId = rows.iterator().next().getInteger(0);
-
-          var username = rows.iterator().next().getString(1);
-
-          var password = rows.iterator().next().getString(2);
-
-
-          var payLoad = new JsonObject();
-
-          payLoad.put("id",credentialId);
-
-          payLoad.put("username",username);
-
-          payLoad.put("password",password);
-
-          promise.complete(payLoad);
-        }
-        else
-        {
-          promise.fail("Credentials do not exist");
-        }
-      })
-      .onFailure(promise::fail);
-
-    return promise.future();
-  }
 
   public Future<RowSet<Row>> getDiscoveryAndCredentialByDiscoveryName(String discoveryName)
   {
@@ -240,4 +205,40 @@ public class DiscoveryDB
       .mapEmpty();  // No return value required on success
   }
 
+  public Future<JsonObject> findCredential(String credentialName)
+  {
+    Promise<JsonObject> promise = Promise.promise();
+
+    sqlClient.preparedQuery("SELECT id,username,password FROM Credentials WHERE name = ?")
+      .execute(Tuple.of(credentialName.trim()))
+      .onSuccess(rows -> {
+        if (rows.size() > 0)
+        {
+
+          var credentialId = rows.iterator().next().getInteger(0);
+
+          var username = rows.iterator().next().getString(1);
+
+          var password = rows.iterator().next().getString(2);
+
+
+          var payLoad = new JsonObject();
+
+          payLoad.put("id",credentialId);
+
+          payLoad.put("username",username);
+
+          payLoad.put("password",password);
+
+          promise.complete(payLoad);
+        }
+        else
+        {
+          promise.fail("Credentials do not exist");
+        }
+      })
+      .onFailure(promise::fail);
+
+    return promise.future();
+  }
 }

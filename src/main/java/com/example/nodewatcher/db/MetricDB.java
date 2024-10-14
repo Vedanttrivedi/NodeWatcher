@@ -4,12 +4,13 @@ import com.example.nodewatcher.models.Cpu_Metric;
 import com.example.nodewatcher.models.Memory_Metric;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
-import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.sqlclient.SqlClient;
 import io.vertx.sqlclient.Tuple;
 import com.example.nodewatcher.models.Metric;
+
+import java.util.concurrent.atomic.AtomicReference;
 
 public class MetricDB
 {
@@ -81,8 +82,10 @@ public class MetricDB
     var query = "SELECT * FROM " + tableName + " WHERE discoveryId = (SELECT id FROM Discovery WHERE name = ?) ORDER BY created_at DESC";
 
     return sqlClient.preparedQuery(query)
+
       .execute(Tuple.of(discoveryName))
       .map(rows -> {
+
         var metricsArray = new JsonArray();
 
         rows.forEach(row -> metricsArray.add(row.toJson()));
@@ -110,13 +113,15 @@ public class MetricDB
       });
   }
 
-  public Future<JsonArray> getTopNMetrics(String discoveryName, String tableName, int n)
+  public Future<JsonArray> getLastNMetrics(String discoveryName, String tableName, int n)
   {
 
     var query = "SELECT * FROM " + tableName + " WHERE discoveryId = (SELECT id FROM Discovery WHERE name = ?)  limit ? ";
 
     return sqlClient.preparedQuery(query)
+
       .execute(Tuple.of(discoveryName, n))
+
       .map(rows -> {
 
         var metricsArray = new JsonArray();
@@ -135,4 +140,53 @@ public class MetricDB
 
       });
   }
+
+  public Future<JsonObject> getAggrMetric(String discoveryName,String tableName,String aggr,String metric)
+  {
+    Promise<JsonObject> promiseData = Promise.promise();
+
+    var futureOfData = promiseData.future();
+
+    AtomicReference<String> query = new AtomicReference<>("");
+
+    sqlClient.preparedQuery("SELECT id FROM Discovery WHERE name = ? ")
+
+    .execute(Tuple.of(discoveryName))
+
+    .compose(result->{
+
+      if(aggr.equals("max"))
+        query.set("SELECT discoveryId,MAX("+metric+") FROM " +tableName+ " WHERE discoveryId = ? GROUP by discoveryId");
+
+      else if(aggr.equals("avg"))
+        query.set("SELECT discoveryId,AVG("+metric+")  FROM " +tableName+ " WHERE discoveryId = ? GROUP by discoveryId");
+
+      else
+        query.set("SELECT discoveryId,MIN("+metric+")  FROM " +tableName+ " WHERE discoveryId = ? GROUP by discoveryId");
+
+      return sqlClient.preparedQuery(query.toString())
+        .execute(Tuple.of(result.iterator().next().getInteger(0)));
+    })
+    .onSuccess(handler->{
+
+      var row = handler.iterator().next();
+
+      var payLoad = new JsonObject();
+
+      payLoad.put("discoveryId",row.getInteger(0));
+
+      payLoad.put(aggr,row.getInteger(1));
+
+      promiseData.complete(payLoad);
+
+    })
+    .onFailure(handler->{
+
+      promiseData.fail("Invalid query");
+
+    });
+
+    return futureOfData;
+  }
+
 }
