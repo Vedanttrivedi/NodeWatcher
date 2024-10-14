@@ -8,11 +8,7 @@ import io.vertx.core.json.JsonArray;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.zeromq.SocketType;
-import org.zeromq.ZContext;
 import org.zeromq.ZMQ;
-
-import java.util.Base64;
-import java.util.concurrent.ConcurrentHashMap;
 
 public class PluginDataSender extends AbstractVerticle
 {
@@ -37,8 +33,8 @@ public class PluginDataSender extends AbstractVerticle
   public void start(Promise<Void> startPromise)
   {
        vertx.eventBus().<JsonArray>localConsumer(Address.PLUGIN_DATA_SENDER, handler->{
-         System.out.println("Sending "+handler.body());
-          send(handler.body());
+
+         send(handler.body());
 
        });
 

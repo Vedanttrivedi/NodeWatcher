@@ -23,12 +23,12 @@ public class MetricDB
 
   }
 
-  public <T extends Metric> Future<Boolean> saveMetric(T metric, String tableName)
+  public Future<Boolean> save(Metric metric)
   {
 
     Promise<Boolean> promise = Promise.promise();
 
-    String discoveryIp = metric.getIp();
+    var discoveryIp = metric.getIp();
 
     sqlClient.preparedQuery("SELECT id FROM Discovery WHERE ip = ?")
       .execute(Tuple.of(discoveryIp))
@@ -39,14 +39,14 @@ public class MetricDB
         {
           var discoveryId = result.result().iterator().next().getInteger(0);
 
-          sqlClient.preparedQuery(getInsertQuery(tableName, metric))
+          sqlClient.preparedQuery(getInsertQuery(metric))
 
             .execute(metric.getTuple(discoveryId))
 
             .onSuccess(res ->{
-              System.out.println("Data saved!");
 
               promise.complete(true);
+
             })
 
             .onFailure(promise::fail);
@@ -61,16 +61,16 @@ public class MetricDB
     return promise.future();
   }
 
-  private String getInsertQuery(String tableName, Metric metric)
+  private String getInsertQuery(Metric metric)
   {
 
     if (metric instanceof Memory_Metric)
     {
-      return "INSERT INTO " + tableName + "(discoveryId, free, used, swap, cache, disc_used, created_at) VALUES (?,?,?,?,?,?,?)";
+      return "INSERT INTO Memory_Metric (discoveryId, free, used, swap, cache, disc_used, created_at) VALUES (?,?,?,?,?,?,?)";
     }
     else if (metric instanceof Cpu_Metric)
     {
-      return "INSERT INTO " + tableName + "(discoveryId, percentage, load_average, process_counts, threads, io_percent, created_at) VALUES (?,?,?,?,?,?,?)";
+      return "INSERT INTO CPU_Metric (discoveryId, percentage, load_average, process_counts, threads, io_percent, created_at) VALUES (?,?,?,?,?,?,?)";
     }
     return null;  //invalid metric type
   }
@@ -83,9 +83,12 @@ public class MetricDB
     return sqlClient.preparedQuery(query)
       .execute(Tuple.of(discoveryName))
       .map(rows -> {
-        JsonArray metricsArray = new JsonArray();
+        var metricsArray = new JsonArray();
+
         rows.forEach(row -> metricsArray.add(row.toJson()));
+
         return metricsArray;
+
       });
 
   }
@@ -101,6 +104,32 @@ public class MetricDB
         var metricsArray = new JsonArray();
 
         rows.forEach(row -> metricsArray.add(row.toJson()));
+
+        return metricsArray;
+
+      });
+  }
+
+  public Future<JsonArray> getTopNMetrics(String discoveryName, String tableName, int n)
+  {
+
+    var query = "SELECT * FROM " + tableName + " WHERE discoveryId = (SELECT id FROM Discovery WHERE name = ?)  limit ? ";
+
+    return sqlClient.preparedQuery(query)
+      .execute(Tuple.of(discoveryName, n))
+      .map(rows -> {
+
+        var metricsArray = new JsonArray();
+
+        rows.forEach(row -> {
+
+          var metric = row.toJson();
+
+          metric.remove("discoveryId");
+
+          metricsArray.add(metric);
+
+        });
 
         return metricsArray;
 

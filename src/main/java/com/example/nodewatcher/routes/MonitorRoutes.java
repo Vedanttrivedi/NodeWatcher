@@ -26,8 +26,14 @@ public class MonitorRoutes
 
     router.get("/:discoveryName/:metricType/range").handler(this::getMetricsInRange);
 
-  }
+    router.get("/:discoveryName/:metricType/:n").handler(this::getTopNMetrics);
 
+  }
+  private  static String getTableName(String memory)
+  {
+    return memory.equals("memory")?"Memory_Metric":"CPU_Metric";
+
+  }
   private void getMetrics(RoutingContext ctx)
   {
 
@@ -37,7 +43,7 @@ public class MonitorRoutes
 
     if(metricType.equals("cpu") || metricType.equals("memory"))
     {
-      var tableName = metricType.equals("cpu") ?"CPU_Metric":"Memory_Metric";
+      var tableName = getTableName(metricType);
 
       metricDB.getMetrics(discoveryName, tableName)
         .onSuccess(metrics -> ctx.response().end(metrics.encodePrettily()))
@@ -50,10 +56,21 @@ public class MonitorRoutes
 
     }
   }
+  private void getTopNMetrics(RoutingContext ctx)
+  {
+    var discoveryName = ctx.pathParam("discoveryName");
 
+    var n = ctx.pathParam("n");
+
+    var tableName = getTableName(ctx.pathParam("metricType"));
+
+    metricDB.getTopNMetrics(discoveryName,tableName,Integer.parseInt(n))
+
+      .onSuccess(metrics -> ctx.response().end(metrics.encodePrettily()))
+      .onFailure(err -> ctx.response().setStatusCode(500).end(err.getMessage()));
+  }
   private void getMetricsInRange(RoutingContext ctx)
   {
-
     var discoveryName = ctx.pathParam("discoveryName");
 
     var metricType = ctx.pathParam("metricType");

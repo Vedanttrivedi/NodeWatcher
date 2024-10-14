@@ -19,15 +19,21 @@ public class Client extends AbstractVerticle
     var router = Router.router(vertx);
 
     var credentialRouter = Router.router(vertx);
+
     var credentialRoutes = new CredentialsRoutes(credentialRouter);
+
     credentialRoutes.attach();
 
     var discoveryRouter = Router.router(vertx);
+
     var discoveryRoutes  = new DiscoveryRoutes();
+
     discoveryRoutes.attach(discoveryRouter);
 
     var monitorRouter = Router.router(vertx);
+
     var monitorRoutes = new MonitorRoutes(monitorRouter);
+
     monitorRoutes.attach();
 
     router.route("/credentials/*").subRouter(credentialRouter);

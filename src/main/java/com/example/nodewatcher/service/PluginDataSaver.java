@@ -2,8 +2,7 @@ package com.example.nodewatcher.service;
 
 import com.example.nodewatcher.BootStrap;
 import com.example.nodewatcher.db.MetricDB;
-import com.example.nodewatcher.models.Cpu_Metric;
-import com.example.nodewatcher.models.Memory_Metric;
+import com.example.nodewatcher.models.Metric;
 import com.example.nodewatcher.utils.Address;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Promise;
@@ -44,45 +43,30 @@ public class PluginDataSaver extends AbstractVerticle
 
         if (device.getBoolean("status"))
         {
+          var metric = Metric.fromJson(device, timestamp);
 
-          var metricType = device.getString("metric");
+          metricDB.save(metric)
 
-          if (metricType.equals("memory"))
-          {
-            var memoryMetric = Memory_Metric.fromJson(device, timestamp);
+          .onComplete(result -> {
 
-            metricDB.saveMetric(memoryMetric, "Memory_Metric")
-              .onComplete(result -> {
+              if (result.failed()){
 
-                if (result.failed()){
+                  System.out.println("Db result error "+result.cause());
+              }
+          });
 
-                  System.out.println("Dbresult error "+result.cause());
-                }
-
-              });
-
-          }
-
-          else if (metricType.equals("cpu"))
-          {
-            var cpuMetric = Cpu_Metric.fromJson(device, timestamp);
-
-            metricDB.saveMetric(cpuMetric, "CPU_Metric")
-              .onComplete(dbResult -> {
-
-                if (dbResult.failed()) {
-                  System.out.println("Dbresult error "+dbResult.cause());
-                }
-
-              });
-
-          }
-        } else {
+        }
+        else
+        {
           logger.error("Device Credential or Network Issue: " + device);
         }
-      } catch (Exception exception) {
+
+      }
+      catch (Exception exception)
+      {
         logger.error("Error", exception);
       }
+
     });
 
     startPromise.complete();

@@ -32,8 +32,6 @@ public class PluginInitializer extends AbstractVerticle
 
     vertx.eventBus().<JsonObject>localConsumer(Address.UPDATE_DISCOVERY, pluginSenderHandler->{
 
-      System.out.println("Handler "+pluginSenderHandler.body());
-
       handleNewDeviceData(pluginSenderHandler.body());
 
     });

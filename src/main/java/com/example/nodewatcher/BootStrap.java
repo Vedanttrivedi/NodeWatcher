@@ -9,7 +9,6 @@ import org.zeromq.ZContext;
 
 public class BootStrap
 {
-
   public static final SqlClient databaseClient = DatabaseClient.getClient();
 
   public static final Vertx vertx = Vertx.vertx();
