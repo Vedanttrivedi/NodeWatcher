@@ -1,6 +1,10 @@
 package com.example.nodewatcher.models;
 
 import io.vertx.core.json.JsonObject;
+import io.vertx.sqlclient.Tuple;
+
+import java.sql.Timestamp;
+import java.time.LocalDateTime;
 
 public class Cpu_Metric extends Metric
 {
@@ -12,9 +16,9 @@ public class Cpu_Metric extends Metric
   private boolean status;
 
 
-  public Cpu_Metric(String ip, float percentage, float load_average, int process_counts, int threads, float io_percent, boolean status)
+  public Cpu_Metric(String ip, Timestamp timestamp, float percentage, float load_average, int process_counts, int threads, float io_percent, boolean status)
   {
-    super(ip);
+    super(ip,timestamp);
 
     this.percentage = percentage;
 
@@ -29,37 +33,14 @@ public class Cpu_Metric extends Metric
     this.status = status;
   }
 
-  public float getPercentage()
+  @Override
+  public Tuple getTuple(int discoveryId)
   {
-    return percentage;
+    return Tuple.of(discoveryId, percentage, load_average, process_counts, threads, io_percent, getTimestamp());
   }
 
-  public float getLoad_average()
-  {
-    return load_average;
-  }
 
-  public int getProcess_counts()
-  {
-    return process_counts;
-  }
-
-  public int getThreads()
-  {
-    return threads;
-  }
-
-  public float getIo_percent()
-  {
-    return io_percent;
-  }
-
-  public boolean isStatus()
-  {
-    return status;
-  }
-
-  public static Cpu_Metric fromJson(JsonObject object)
+  public static Cpu_Metric fromJson(JsonObject object,Timestamp timestamp)
   {
     try
     {
@@ -75,14 +56,29 @@ public class Cpu_Metric extends Metric
 
       var threads = Integer.valueOf(object.getString("threads"));
 
-      return new Cpu_Metric(ip,percentage,load_average,process_counts,threads,io_percent,object.getBoolean("status"));
+      return new Cpu_Metric(ip,timestamp,percentage,load_average,process_counts,threads,io_percent,object.getBoolean("status"));
 
     }
     catch (Exception e)
     {
       System.out.println("failed for "+object);
     }
-    return new Cpu_Metric("ip",0,0,0,0,0,false);
+    return new Cpu_Metric("ip",Timestamp.valueOf(LocalDateTime.now()),0,0,0,0,0,false);
+  }
+
+  @Override
+  public JsonObject toJson()
+  {
+
+    return new JsonObject()
+      .put("ip", getIp())
+      .put("timestamp", getTimestamp().toString())
+      .put("percentage", percentage)
+      .put("loadAverage", load_average)
+      .put("processCount", process_counts)
+      .put("threads", threads)
+      .put("ioPercent", io_percent);
+
   }
 }
 

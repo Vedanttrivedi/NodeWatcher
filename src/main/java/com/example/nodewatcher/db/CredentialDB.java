@@ -1,5 +1,6 @@
 package com.example.nodewatcher.db;
 
+import com.example.nodewatcher.BootStrap;
 import com.example.nodewatcher.models.Credential;
 import com.example.nodewatcher.utils.Address;
 import com.example.nodewatcher.utils.Config;
@@ -28,7 +29,7 @@ public class CredentialDB
   }
 
 
-  public Future<Void> save( Credential credential)
+  public Future<Void> save(Credential credential)
   {
     var query = "INSERT INTO Credentials (name, username, password, protocol) VALUES (?, ?, ?, ?)";
 
@@ -46,13 +47,16 @@ public class CredentialDB
       .execute(Tuple.of(name))
       .map(resultSet -> {
 
-        Row row = resultSet.iterator().next();
-        JsonObject credential = new JsonObject()
+          var row = resultSet.iterator().next();
+
+          var credential = new JsonObject()
           .put("name", row.getString("name"))
           .put("username", row.getString("username"))
           .put("protocol", row.getInteger("protocol"))
           .put("created_at", row.getLocalDateTime("created_at").toString());
-        return credential;
+
+          return credential;
+
       });
   }
 

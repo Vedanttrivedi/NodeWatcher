@@ -1,5 +1,6 @@
 package com.example.nodewatcher.service;
 
+import com.example.nodewatcher.BootStrap;
 import com.example.nodewatcher.utils.Address;
 import io.vertx.core.Vertx;
 import org.slf4j.Logger;
@@ -12,18 +13,14 @@ public class PluginDataReceiver extends Thread
 {
   private ZMQ.Socket pullSocket;
 
-  private Vertx vertx;
-
   private static final Logger logger = LoggerFactory.getLogger(PluginDataSaver.class);
 
-  public PluginDataReceiver(ZContext context, Vertx vertx)
+  public PluginDataReceiver()
   {
 
-    this.pullSocket = context.createSocket(SocketType.PULL);
+    this.pullSocket = BootStrap.zContext.createSocket(SocketType.PULL);
 
     pullSocket.connect(Address.PULL_SOCKET);
-
-    this.vertx = vertx;
 
   }
 
@@ -38,7 +35,7 @@ public class PluginDataReceiver extends Thread
 
         if (message != null)
         {
-          vertx.eventBus().send(Address.DUMPDB, message);
+          BootStrap.vertx.eventBus().send(Address.DUMPDB, message);
 
         }
       }

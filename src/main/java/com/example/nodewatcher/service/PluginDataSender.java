@@ -1,5 +1,6 @@
 package com.example.nodewatcher.service;
 
+import com.example.nodewatcher.BootStrap;
 import com.example.nodewatcher.utils.Address;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Promise;
@@ -21,12 +22,12 @@ public class PluginDataSender extends AbstractVerticle
 
   private Boolean pollStarted;
 
-  public PluginDataSender(ZContext context)
+  public PluginDataSender()
   {
 
     pollStarted = false;
 
-    socket = context.createSocket(SocketType.PUSH);
+    socket = BootStrap.zContext.createSocket(SocketType.PUSH);
 
     socket.bind(Address.PUSH_SOCKET);
 

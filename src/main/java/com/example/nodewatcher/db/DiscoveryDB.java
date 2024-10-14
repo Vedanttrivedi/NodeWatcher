@@ -3,16 +3,12 @@ package com.example.nodewatcher.db;
 import com.example.nodewatcher.utils.Config;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
-import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.sqlclient.Row;
 import io.vertx.sqlclient.RowSet;
 import io.vertx.sqlclient.SqlClient;
 import io.vertx.sqlclient.Tuple;
-
-import java.lang.reflect.Type;
-import java.util.concurrent.ConcurrentHashMap;
 
 public class DiscoveryDB
 {
@@ -33,6 +29,7 @@ public class DiscoveryDB
       .onSuccess(rows -> {
         if (rows.size() > 0)
         {
+
           var credentialId = rows.iterator().next().getInteger(0);
 
           var username = rows.iterator().next().getString(1);

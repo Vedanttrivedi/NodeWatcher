@@ -4,6 +4,7 @@ import com.example.nodewatcher.BootStrap;
 import com.example.nodewatcher.db.DiscoveryDB;
 import com.example.nodewatcher.service.PluginDataSaver;
 import com.example.nodewatcher.utils.Address;
+import com.sun.jdi.BooleanType;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
@@ -15,109 +16,80 @@ import io.vertx.ext.web.handler.BodyHandler;
 import io.vertx.ext.web.handler.TimeoutHandler;
 import org.slf4j.LoggerFactory;
 
-public class DiscoveryRoutes extends AbstractVerticle
+public class DiscoveryRoutes implements RouteOperations
 {
 
-  private final Router router;
+  private final  DiscoveryDB discoveryDB = new DiscoveryDB(BootStrap.databaseClient);
 
-  private final DiscoveryDB discoveryDB;
+  private static final org.slf4j.Logger logger = LoggerFactory.getLogger(DiscoveryRoutes.class);
 
-  private static final org.slf4j.Logger logger = LoggerFactory.getLogger(PluginDataSaver.class);
-
-  public DiscoveryRoutes(Router router)
-  {
-    this.router = router;
-
-    this.discoveryDB = new DiscoveryDB(BootStrap.getDatabaseClient());
-  }
-
-  @Override
-  public void start(Promise<Void> startPromise)
-  {
-    startPromise.complete();
-    attach();
-
-  }
-
-  public void attach()
+  public void attach(Router router)
   {
 
-    router.post("/discovery/create")
+    router.post("/create")
       .handler(TimeoutHandler.create(5000))
       .handler(BodyHandler.create())
-      .handler(this::createDiscovery);
+      .handler(this::create);
 
-    router.get("/discovery/get/:name").handler(this::getDiscovery);
+    router.get("/get/:name").handler(this::get);
 
-    router.get("/discovery/all").handler(this::getAllDiscovery);
+    router.get("/all").handler(this::getAll);
 
-    router.put("/discovery/update/:name").
+    router.put("/update/:name").
       handler(BodyHandler.create())
-      .handler(this::updateDiscovery);
+      .handler(this::update);
 
-    router.delete("/discovery/delete/:name").handler(this::deleteDiscovery);
+    router.delete("/delete/:name").handler(this::delete);
 
-    router.patch("/discovery/provision/:name").
+    router.patch("/provision/:name").
       handler(BodyHandler.create()).
-      handler(this::provisionDiscovery);
+      handler(this::provision);
 
   }
 
-  void getDiscovery(RoutingContext context)
-  {
-
+  public  void get(RoutingContext context) {
     var name = context.pathParam("name").trim();
 
-    vertx.executeBlocking(promise->{
+    if (name.isEmpty()) {
+      context.response().setStatusCode(400).end("Discovery name cannot be empty.");
+      return;
+    }
 
-      discoveryDB.getDiscovery(name)
+    discoveryDB.getDiscovery(name)
+      .onComplete(result -> {
+        if (result.succeeded()) {
+          var discovery = result.result();
 
-        .onComplete(result->{
+          if (discovery == null)
+            context.response().setStatusCode(404).end("Discovery does not exist.");
 
-          if(result.succeeded())
+          else
           {
-            if(result.result()==null)
-            {
-              promise.fail("Discovery does not exists");
-            }
-            else
-              promise.complete(result.result());
+            BootStrap.vertx.eventBus().request(Address.SSHCHECK, discovery, reply -> {
+              System.out.println("SSH Reply "+reply.result());
+              if (reply.succeeded()) {
+
+                discovery.remove("passsword");
+                discovery.put("status", "Up");
+              } else {
+
+                discovery.remove("passsword");
+                discovery.put("status", "Down");
+              }
+              context.response()
+                .putHeader("Content-Type", "application/json")
+                .end(discovery.encodePrettily());
+            });
           }
-        });
-
-    },future->{
-        if(future.succeeded())
-        {
-          var discovery = (JsonObject)future.result();
-
-          vertx.eventBus().request(Address.SSHCHECK,discovery,reply->{
-
-            discovery.remove("password");
-
-            if(reply.succeeded())
-            {
-
-              discovery.put("status","Up");
-
-              context.response().putHeader("Content-Type", "application/json").end(discovery.encodePrettily());
-
-            }
-            else
-            {
-              discovery.put("status","Down");
-
-              context.response().putHeader("Content-Type", "application/json").end(discovery.encodePrettily());
-
-            }
-          });
         }
         else
-          context.response().end("Discovery not found!");
-    });
-
+        {
+          context.response().setStatusCode(500).end("Database error: " + result.cause().getMessage());
+        }
+      });
   }
 
-  void getAllDiscovery(RoutingContext context)
+  public   void getAll(RoutingContext context)
   {
 
     discoveryDB.getAllDiscoveries()
@@ -132,7 +104,7 @@ public class DiscoveryRoutes extends AbstractVerticle
       });
   }
 
-  void updateDiscovery(RoutingContext context)
+  public   void update(RoutingContext context)
   {
     var name = context.pathParam("name");
 
@@ -165,7 +137,7 @@ public class DiscoveryRoutes extends AbstractVerticle
 
   }
 
-  void deleteDiscovery(RoutingContext context)
+   public  void delete(RoutingContext context)
   {
     var name = context.pathParam("name");
 
@@ -182,7 +154,7 @@ public class DiscoveryRoutes extends AbstractVerticle
 
   }
 
-  void provisionDiscovery(RoutingContext context)
+  public   void provision(RoutingContext context)
   {
     var name = context.pathParam("name").trim();
 
@@ -233,7 +205,7 @@ public class DiscoveryRoutes extends AbstractVerticle
                     discoveryAndCredentialBody.put("doPolling",doProvision);
 
 
-                    vertx.eventBus().send(Address.UPDATE_DISCOVERY,discoveryAndCredentialBody);
+                    BootStrap.vertx.eventBus().send(Address.UPDATE_DISCOVERY,discoveryAndCredentialBody);
 
                   });
 
@@ -261,7 +233,7 @@ public class DiscoveryRoutes extends AbstractVerticle
 
   }
 
-  void createDiscovery(RoutingContext context)
+  public   void create(RoutingContext context)
   {
     try
     {
@@ -281,7 +253,7 @@ public class DiscoveryRoutes extends AbstractVerticle
 
 
         credential.put("ip", ip);
-        return vertx.eventBus().<JsonObject>request(Address.SSHCHECK, credential,new DeliveryOptions().setSendTimeout(4000))
+        return BootStrap.vertx.eventBus().<JsonObject>request(Address.SSHCHECK, credential,new DeliveryOptions().setSendTimeout(4000))
             .map(reply -> new JsonObject().put("credential", credential).put("sshReply", reply.body()));
 
         })

@@ -5,16 +5,14 @@ import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Promise;
 import io.vertx.core.eventbus.DeliveryOptions;
 import io.vertx.core.json.JsonObject;
-import io.vertx.core.json.impl.JsonUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class UnReachableDiscovery extends AbstractVerticle
 {
+
   private static final Logger log = LoggerFactory.getLogger(UnReachableDiscovery.class);
 
   private final Map<String, JsonObject> unreachedMonitors;
@@ -35,6 +33,7 @@ public class UnReachableDiscovery extends AbstractVerticle
     });
 
     //Every 5 Minutes try reaching devices which are down
+
     //If Device gets up send to plugin sender and remove from unReachedMonitors
 
     vertx.setPeriodic(Address.UNREACHBILITY_TIMER,handler->{

@@ -22,7 +22,7 @@ public class PluginInitializer extends AbstractVerticle
   public PluginInitializer()
   {
 
-    this.sqlClient = BootStrap.getDatabaseClient();
+    this.sqlClient = BootStrap.databaseClient;
 
   }
 

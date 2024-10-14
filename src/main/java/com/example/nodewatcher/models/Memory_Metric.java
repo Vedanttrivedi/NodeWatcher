@@ -1,6 +1,10 @@
 package com.example.nodewatcher.models;
 
 import io.vertx.core.json.JsonObject;
+import io.vertx.sqlclient.Tuple;
+
+import java.sql.Timestamp;
+import java.time.LocalDateTime;
 
 public class Memory_Metric extends Metric
 {
@@ -12,8 +16,8 @@ public class Memory_Metric extends Metric
   private boolean status;
 
 
-  public Memory_Metric(String ip, int free, int used, int swap, int cached, int disk_space, boolean status) {
-    super(ip);
+  public Memory_Metric(String ip, Timestamp timestamp, int free, int used, int swap, int cached, int disk_space, boolean status) {
+    super(ip,timestamp);
     this.free = free;
     this.used = used;
     this.swap = swap;
@@ -21,8 +25,26 @@ public class Memory_Metric extends Metric
     this.disk_space = disk_space;
     this.status = status;
   }
+  @Override
+  public JsonObject toJson()
+  {
+    return new JsonObject()
+      .put("ip", getIp())
+      .put("timestamp", getTimestamp().toString())
+      .put("free", free)
+      .put("used", used)
+      .put("swap", swap)
+      .put("cached", cached)
+      .put("diskSpace", disk_space);
+  }
+  @Override
 
-  public static Memory_Metric fromJson(JsonObject object)
+  public Tuple getTuple(int discoveryId)
+  {
+    return Tuple.of(discoveryId, free, used, swap, cached, disk_space, getTimestamp());
+  }
+
+  public static Memory_Metric fromJson(JsonObject object,Timestamp timestamp)
   {
     try
     {
@@ -39,14 +61,14 @@ public class Memory_Metric extends Metric
       var disk_space = Integer.valueOf(object.getString("disk_space"));
 
 
-      return new Memory_Metric(ip,free,swap,used,cached,disk_space,object.getBoolean("status"));
+      return new Memory_Metric(ip,timestamp,free,swap,used,cached,disk_space,object.getBoolean("status"));
 
     }
     catch (Exception e)
     {
       System.out.println("failed for "+object);
     }
-    return new Memory_Metric("ip",0,0,0,0,0,false);
+    return new Memory_Metric("ip",Timestamp.valueOf(LocalDateTime.now()),0,0,0,0,0,false);
   }
 
   public int getFree()
@@ -70,8 +92,5 @@ public class Memory_Metric extends Metric
     return disk_space;
   }
 
-  public boolean isStatus() {
-    return status;
-  }
 }
 

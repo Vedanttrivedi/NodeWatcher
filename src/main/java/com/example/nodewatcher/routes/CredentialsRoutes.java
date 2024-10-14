@@ -9,53 +9,53 @@ import io.vertx.ext.web.handler.BodyHandler;
 import io.vertx.ext.web.handler.TimeoutHandler;
 import java.time.LocalDateTime;
 
-public class CredentialsRoutes
+public class CredentialsRoutes implements RouteOperations
 {
 
   private final CredentialDB credentialDB;
 
-  private final Router router;
+  private final  Router router;
 
   public CredentialsRoutes(Router router)
   {
     this.router = router;
 
-    credentialDB = new CredentialDB(BootStrap.getDatabaseClient());
+    credentialDB = new CredentialDB(BootStrap.databaseClient);
   }
 
-  public void attach()
+  public  void attach()
   {
 
-    router.post("/credential/create")
+    router.post("/create")
 
       .handler(TimeoutHandler.create(5000))
       .handler(BodyHandler.create())
-      .handler(this::createCredential);
+      .handler(this::create);
 
-    router.get("/credential/get/")
+    router.get("/get/")
       .handler(TimeoutHandler.create(5000))
-      .handler(this::getAllCredential);
+      .handler(this::getAll);
 
 
-    router.get("/credential/get/:name")
+    router.get("/get/:name")
       .handler(TimeoutHandler.create(5000))
-      .handler(this::getCredential);
+      .handler(this::get);
 
 
-    router.put("/credential/update/:name")
+    router.put("/update/:name")
 
       .handler(TimeoutHandler.create(5000))
       .handler(BodyHandler.create())
-      .handler(this::updateCredential);
+      .handler(this::update);
 
-    router.delete("/credential/delete/:name")
+    router.delete("/delete/:name")
       .handler(TimeoutHandler.create(4000))
-      .handler(this::deleteCredential);
+      .handler(this::delete);
 
   }
 
 
-  private void createCredential(RoutingContext context)
+  public void create(RoutingContext context)
   {
 
     var name = context.request().getFormAttribute("name");
@@ -95,7 +95,7 @@ public class CredentialsRoutes
 
   }
 
-  private void getCredential(RoutingContext context)
+  public  void get(RoutingContext context)
   {
     var name = context.pathParam("name").trim();
 
@@ -116,7 +116,7 @@ public class CredentialsRoutes
 
   }
 
-  private void getAllCredential(RoutingContext context)
+  public  void getAll(RoutingContext context)
   {
     credentialDB.getCredential()
 
@@ -130,7 +130,7 @@ public class CredentialsRoutes
 
   }
 
-  private void updateCredential(RoutingContext context) {
+  public  void update(RoutingContext context) {
 
     var name = context.pathParam("name");
 
@@ -162,7 +162,7 @@ public class CredentialsRoutes
 
   }
 
-  private void deleteCredential(RoutingContext context)
+  public  void delete(RoutingContext context)
   {
 
     var name = context.pathParam("name");

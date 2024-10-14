@@ -9,252 +9,101 @@ import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.sqlclient.SqlClient;
 import io.vertx.sqlclient.Tuple;
-
-import java.sql.Timestamp;
+import com.example.nodewatcher.models.Metric;
 
 public class MetricDB
 {
-  private SqlClient sqlClient;
+
+  private final SqlClient sqlClient;
 
   public MetricDB(SqlClient sqlClient)
   {
-    this.sqlClient =sqlClient;
+
+    this.sqlClient = sqlClient;
+
   }
 
-  public Future<Boolean> saveMemory(Memory_Metric memoryMetric, Timestamp timestamp)
+  public <T extends Metric> Future<Boolean> saveMetric(T metric, String tableName)
   {
+
     Promise<Boolean> promise = Promise.promise();
 
-    var discoveryIp = memoryMetric.getIp();
+    String discoveryIp = metric.getIp();
 
     sqlClient.preparedQuery("SELECT id FROM Discovery WHERE ip = ?")
-
       .execute(Tuple.of(discoveryIp))
 
-      .onComplete(returnRowsResult -> {
+      .onComplete(result -> {
 
-        if(returnRowsResult.succeeded())
+        if (result.succeeded())
         {
-          returnRowsResult.result().forEach(row->{
+          var discoveryId = result.result().iterator().next().getInteger(0);
 
-            var discovery_id = row.getInteger(0);
+          sqlClient.preparedQuery(getInsertQuery(tableName, metric))
 
+            .execute(metric.getTuple(discoveryId))
 
-            sqlClient.preparedQuery("INSERT INTO Memory_Metric(discoveryId,free,swap,used," +
-              "cache,disc_used,created_at) VALUES (?,?,?,?,?,?,?)")
+            .onSuccess(res ->{
+              System.out.println("Data saved!");
 
-              .execute(Tuple.of(discovery_id,memoryMetric.getFree(),memoryMetric.getSwap(),
-                memoryMetric.getCached(),memoryMetric.getCached(),memoryMetric.getDisk_space(),timestamp))
+              promise.complete(true);
+            })
 
-              .onComplete(result ->{
+            .onFailure(promise::fail);
 
-                if(result.succeeded())
-                {
-                  //System.out.println("Rows Added in db ");
-                  promise.complete();
-                }
-                else
-                {
-                  System.out.println("Failed while adding rows "+result.result());
-                  promise.fail(result.cause());
-                }
-
-                });
-          });
+        }
+        else
+        {
+          promise.fail(result.cause());
         }
       });
-    return  promise.future();
-  }
-  public  Future<Boolean> saveCpu(Cpu_Metric cpuMetric, Timestamp timestamp)
-  {
-    Promise<Boolean> promise = Promise.promise();
 
-    var discoveryIp = cpuMetric.getIp();
-
-    sqlClient.preparedQuery("SELECT id FROM Discovery WHERE ip = ?")
-
-      .execute(Tuple.of(discoveryIp))
-
-      .onComplete(returnRowsResult -> {
-
-        if(returnRowsResult.succeeded())
-        {
-          returnRowsResult.result().forEach(row->{
-
-            var discovery_id = row.getInteger(0);
-
-
-            sqlClient.preparedQuery("INSERT INTO CPU_Metric(discoveryId,percentage,load_average,process_counts," +
-                "io_percent,threads,created_at) VALUES (?,?,?,?,?,?,?)")
-
-              .execute(Tuple.of(discovery_id,cpuMetric.getPercentage(),cpuMetric.getLoad_average(),
-                cpuMetric.getProcess_counts(),cpuMetric.getIo_percent(),cpuMetric.getThreads(),timestamp))
-
-              .onComplete(result ->{
-
-                if(result.succeeded())
-                {
-                  promise.complete();
-                }
-                else
-                {
-                  System.out.println("Failed while adding rows "+result.result());
-                  promise.fail(result.cause());
-                }
-
-              }).onFailure(failure->{
-
-                System.out.println("Failed last "+failure.getMessage());
-              });
-          });
-        }
-      });
     return promise.future();
   }
 
-  public Future<JsonArray> getMemoryMetrics(String discoveryName)
+  private String getInsertQuery(String tableName, Metric metric)
   {
 
-    var query = "SELECT m.* FROM Memory_Metric m " +
-      "JOIN Discovery d ON m.discoveryId = d.id " +
-      "WHERE d.name = ? ORDER BY created_at DESC";
+    if (metric instanceof Memory_Metric)
+    {
+      return "INSERT INTO " + tableName + "(discoveryId, free, used, swap, cache, disc_used, created_at) VALUES (?,?,?,?,?,?,?)";
+    }
+    else if (metric instanceof Cpu_Metric)
+    {
+      return "INSERT INTO " + tableName + "(discoveryId, percentage, load_average, process_counts, threads, io_percent, created_at) VALUES (?,?,?,?,?,?,?)";
+    }
+    return null;  //invalid metric type
+  }
+
+  public Future<JsonArray> getMetrics(String discoveryName, String tableName)
+  {
+
+    var query = "SELECT * FROM " + tableName + " WHERE discoveryId = (SELECT id FROM Discovery WHERE name = ?) ORDER BY created_at DESC";
 
     return sqlClient.preparedQuery(query)
       .execute(Tuple.of(discoveryName))
       .map(rows -> {
         JsonArray metricsArray = new JsonArray();
-        var config = new JsonObject();
-        config.put("metric","memory");
-        config.put("storeFormat","bytes");
-        metricsArray.add(config);
-        rows.forEach(row -> {
-          JsonObject metric = new JsonObject()
-            .put("created_at", row.getLocalDateTime("created_at").toString())
-            .put("free", row.getLong("free"))
-            .put("used", row.getLong("used"))
-            .put("swap", row.getLong("swap"))
-            .put("disc_used", row.getLong("disc_used"))
-            .put("cache", row.getLong("cache"));
-
-          metricsArray.add(metric);
-        });
-
+        rows.forEach(row -> metricsArray.add(row.toJson()));
         return metricsArray;
       });
+
   }
 
-
-  public Future<JsonArray> getMemoryMetricsAggr(String aggr,String metricName)
+  public Future<JsonArray> getMetricsInRange(String discoveryName, String tableName, String startTime, String endTime)
   {
-
-    var query = "SELECT created_at,"+aggr+"(?) FROM Memory_Metric";
-    System.out.println("Query "+query);
-    return sqlClient.preparedQuery(query)
-      .execute(Tuple.of(metricName))
-      .map(rows -> {
-        JsonArray metricsArray = new JsonArray();
-        var config = new JsonObject();
-        config.put("metric","memory");
-        config.put("storeFormat","bytes");
-        metricsArray.add(config);
-        rows.forEach(row -> {
-          JsonObject metric = new JsonObject()
-            .put("created_at", row.getLocalDateTime("created_at").toString())
-            .put("metric",metricName);
-          metricsArray.add(metric);
-        });
-
-        return metricsArray;
-      });
-  }
-
-  public Future<JsonArray> getMemoryMetricsLastN(String discoveryName, int n)
-  {
-
-
-    var query = "SELECT m.* FROM Memory_Metric m " +
-      "JOIN Discovery d ON m.discoveryId = d.id " +
-      "WHERE d.name = ? ORDER BY created_at DESC LIMIT ?";
+    var query = "SELECT * FROM " + tableName + " WHERE discoveryId = (SELECT id FROM Discovery WHERE name = ?) AND created_at BETWEEN ? AND ?";
 
     return sqlClient.preparedQuery(query)
-      .execute(Tuple.of(discoveryName,n))
+      .execute(Tuple.of(discoveryName, startTime, endTime))
       .map(rows -> {
-        JsonArray metricsArray = new JsonArray();
-        var config = new JsonObject();
-        config.put("metric","memory");
-        config.put("storeFormat","bytes");
-        metricsArray.add(config);
-        rows.forEach(row -> {
-          JsonObject metric = new JsonObject()
 
-            .put("created_at", row.getLocalDateTime("created_at").toString())
+        var metricsArray = new JsonArray();
 
-            .put("free", row.getLong("free"))
+        rows.forEach(row -> metricsArray.add(row.toJson()));
 
-            .put("used", row.getLong("used"))
-
-            .put("swap", row.getLong("swap"))
-
-            .put("disc_used", row.getLong("disc_used"))
-            .put("cache", row.getLong("cache"));
-
-          metricsArray.add(metric);
-
-        });
         return metricsArray;
+
       });
   }
-  public Future<JsonArray> getCPUMetrics(String discoveryName)
-  {
-
-    var query = "SELECT m.* FROM CPU_Metric m " +
-      "JOIN Discovery d ON m.discoveryId = d.id " +
-      "WHERE d.name = ? ORDER BY created_at DESC";
-
-    return sqlClient.preparedQuery(query)
-      .execute(Tuple.of(discoveryName))
-      .map(rows -> {
-        JsonArray metricsArray = new JsonArray();
-        rows.forEach(row -> {
-          JsonObject metric = new JsonObject()
-            .put("created_at", row.getLocalDateTime("created_at").toString())
-            .put("user_cpu_percentage", row.getFloat("percentage"))
-            .put("load_average", row.getFloat("load_average"))
-            .put("process", row.getInteger("process_counts"))
-            .put("threads", row.getInteger("threads"))
-            .put("io_percent", row.getFloat("io_percent"));
-          metricsArray.add(metric);
-        });
-        return metricsArray;
-      });
-  }
-  public Future<JsonArray> getCPUMetricsLastN(String discoveryName, int n)
-  {
-
-
-    var query = "SELECT m.* FROM CPU_Metric m " +
-      "JOIN Discovery d ON m.discoveryId = d.id " +
-      "WHERE d.name = ? ORDER BY created_at DESC LIMIT ?";
-
-    return sqlClient.preparedQuery(query)
-      .execute(Tuple.of(discoveryName,n))
-      .map(rows -> {
-        JsonArray metricsArray = new JsonArray();
-        rows.forEach(row ->
-        {
-          JsonObject metric = new JsonObject()
-            .put("created_at", row.getLocalDateTime("created_at").toString())
-            .put("user_cpu_percentage", row.getFloat("percentage"))
-            .put("load_average", row.getFloat("load_average"))
-            .put("process", row.getInteger("process_counts"))
-            .put("threads", row.getInteger("threads"))
-            .put("io_percent", row.getFloat("io_percent"));
-          metricsArray.add(metric);
-
-        });
-        return metricsArray;
-      });
-  }
-
-
 }

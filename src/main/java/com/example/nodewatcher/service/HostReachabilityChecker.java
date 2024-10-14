@@ -67,11 +67,15 @@ public class HostReachabilityChecker extends AbstractVerticle
 
       if(pingResultFuture.succeeded())
       {
+
           message.reply("Device In Reach");
+
       }
       else
       {
+
         message.fail(1,"Device not in reach!");
+
       }
     });
 
@@ -81,7 +85,6 @@ public class HostReachabilityChecker extends AbstractVerticle
   {
     var data = message.body();
 
-    System.out.println("data "+data );
     var ip = data.getString("ip");
 
     var password = data.getString("password");
@@ -116,8 +119,10 @@ public class HostReachabilityChecker extends AbstractVerticle
 
     },false,sshFutureRes->
     {
-      if(sshFutureRes.succeeded())
+      if(sshFutureRes.succeeded()){
+
         message.reply("Discovered");
+      }
       else
         message.fail(1,"Authentication ERROR");
 

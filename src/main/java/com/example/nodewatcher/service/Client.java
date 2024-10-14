@@ -3,7 +3,7 @@ package com.example.nodewatcher.service;
 import com.example.nodewatcher.routes.CredentialsRoutes;
 import com.example.nodewatcher.routes.DiscoveryRoutes;
 import com.example.nodewatcher.routes.ErrorRoutes;
-import com.example.nodewatcher.routes.ProvisionalRoutes;
+import com.example.nodewatcher.routes.MonitorRoutes;
 import com.example.nodewatcher.utils.Config;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Promise;
@@ -18,57 +18,42 @@ public class Client extends AbstractVerticle
 
     var router = Router.router(vertx);
 
-    var credentialRoutes = new CredentialsRoutes(router);
-
+    var credentialRouter = Router.router(vertx);
+    var credentialRoutes = new CredentialsRoutes(credentialRouter);
     credentialRoutes.attach();
 
-    var provisionalRoutes = new ProvisionalRoutes(router);
+    var discoveryRouter = Router.router(vertx);
+    var discoveryRoutes  = new DiscoveryRoutes();
+    discoveryRoutes.attach(discoveryRouter);
 
-    provisionalRoutes.attach();
+    var monitorRouter = Router.router(vertx);
+    var monitorRoutes = new MonitorRoutes(monitorRouter);
+    monitorRoutes.attach();
 
-    vertx.deployVerticle(new DiscoveryRoutes(router),
+    router.route("/credentials/*").subRouter(credentialRouter);
 
-      handler->{
+    router.route("/discovery/*").subRouter(discoveryRouter);
 
-      if(handler.failed())
-        System.out.println("Failed Deploying Discovery Routes");
-
-    });
-
-    ErrorRoutes.attach(router);
+    router.route("/monitor/*").subRouter(monitorRouter);
 
     vertx.createHttpServer()
 
-      .exceptionHandler(handler->{
+      .exceptionHandler(handler -> startPromise.fail(handler.getCause()))
 
-        System.out.println("Something went wrong "+ handler.getLocalizedMessage());
-
-        startPromise.fail(handler.getCause());
-
-      })
       .requestHandler(router)
 
-      .listen(Config.HTTP_PORT, http->{
+      .listen(Config.HTTP_PORT, http ->
+      {
 
-        if(http.succeeded())
+        if (http.succeeded())
         {
-
-          System.out.println("Sever started on port "+ Config.HTTP_PORT);
-
           startPromise.complete();
         }
-
         else
         {
-            startPromise.fail("Not Able to listen on port "+Config.HTTP_PORT);
+          startPromise.fail("Not Able to listen on port " + Config.HTTP_PORT);
         }
-
       });
-  }
 
-  @Override
-  public void stop(Promise<Void> stopPromise) throws Exception
-  {
-    super.stop(stopPromise);
   }
 }

@@ -7,28 +7,17 @@ import io.vertx.core.*;
 import io.vertx.sqlclient.SqlClient;
 import org.zeromq.ZContext;
 
-
 public class BootStrap
 {
 
-  static SqlClient databaseClient;
+  public static final SqlClient databaseClient = DatabaseClient.getClient();
 
-  public static SqlClient getDatabaseClient()
-  {
-    return databaseClient;
-  }
+  public static final Vertx vertx = Vertx.vertx();
+
+  public static final ZContext zContext = new ZContext();
 
   public static void main(String[] args)
   {
-    var vertx = Vertx.vertx();
-
-    databaseClient = DatabaseClient.getClient(vertx);
-
-    var context = new ZContext();
-
-    var pluginDataReceiverThread = new PluginDataReceiver(context,vertx);
-
-    pluginDataReceiverThread.start();
 
     vertx.deployVerticle(new HostReachabilityChecker())
 
@@ -36,12 +25,9 @@ public class BootStrap
 
     .compose(deploymentId->vertx.deployVerticle(new PluginInitializer()))
 
-    .compose(deploymentId->vertx.deployVerticle(new PluginDataSender(context)))
+    .compose(deploymentId->vertx.deployVerticle(new PluginDataSender()))
 
     .compose(deploymentId->vertx.deployVerticle(new DataPoll()))
-
-    .compose(deploymentId->vertx.deployVerticle(PluginDataSaver.class.getName(),
-      new DeploymentOptions().setInstances(Config.DATA_SAVER_INSTANCES)))
 
     .compose(deploymentId->vertx.deployVerticle(new UnReachableDiscovery()))
 
@@ -49,7 +35,20 @@ public class BootStrap
 
         if(deploymentResult.succeeded())
         {
+          var pluginDataReceiver = new PluginDataReceiver();
+
+          pluginDataReceiver.start();
+
+          vertx.deployVerticle(PluginDataSaver.class.getName(),
+          new DeploymentOptions().setInstances(Config.DATA_SAVER_INSTANCES),result->{
+
+            if(result.failed())
+                System.out.println("Error "+result.cause().getMessage());
+
+            });
+
           System.out.println("Verticals Deployed!");
+
         }
         else
         {
@@ -57,5 +56,5 @@ public class BootStrap
         }
       });
 
-    }
+  }
 }
