@@ -1,6 +1,7 @@
 package com.example.nodewatcher.service;
 
 import com.example.nodewatcher.Bootstrap;
+import com.example.nodewatcher.models.Device;
 import com.example.nodewatcher.utils.Address;
 import com.example.nodewatcher.utils.Config;
 import io.vertx.core.AbstractVerticle;
@@ -15,6 +16,9 @@ import org.slf4j.LoggerFactory;
 import org.zeromq.SocketType;
 import org.zeromq.ZMQ;
 
+import java.util.HashMap;
+import java.util.Map;
+
 public class PluginDataSender extends AbstractVerticle
 {
   private static final Logger log = LoggerFactory.getLogger(PluginDataSender.class);
@@ -24,6 +28,8 @@ public class PluginDataSender extends AbstractVerticle
   private Boolean pollStarted;
 
   private final SqlClient sqlClient;
+
+  private final Map<String, Device> monitoredDevice;
 
   public PluginDataSender()
   {
@@ -35,6 +41,8 @@ public class PluginDataSender extends AbstractVerticle
     socket.bind(Address.PUSH_SOCKET);
 
     sqlClient = Bootstrap.databaseClient;
+
+    monitoredDevice = new HashMap<>();
 
   }
 
