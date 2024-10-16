@@ -5,7 +5,7 @@ import io.vertx.sqlclient.Tuple;
 
 import java.sql.Timestamp;
 
-public class Cpu_Metric extends Metric
+public class CpuMetric extends Metric
 {
   private float percentage;
 
@@ -20,7 +20,7 @@ public class Cpu_Metric extends Metric
   private boolean status;
 
 
-  public Cpu_Metric(String ip, Timestamp timestamp, float percentage, float load_average, int process_counts, int threads, float io_percent, boolean status)
+  public CpuMetric(String ip, Timestamp timestamp, float percentage, float load_average, int process_counts, int threads, float io_percent, boolean status)
   {
     super(ip,timestamp);
 
@@ -43,8 +43,7 @@ public class Cpu_Metric extends Metric
     return Tuple.of(discoveryId, percentage, load_average, process_counts, threads, io_percent, getTimestamp());
   }
 
-
-  public static Cpu_Metric fromJson(JsonObject object,Timestamp timestamp)
+  public static CpuMetric fromJson(JsonObject object, Timestamp timestamp)
   {
     var ip = object.getString("ip");
 
@@ -58,7 +57,7 @@ public class Cpu_Metric extends Metric
 
     var threads = Integer.valueOf(object.getString("threads"));
 
-    return new Cpu_Metric(ip,timestamp,percentage,load_average,process_counts,threads,io_percent,object.getBoolean("status"));
+    return new CpuMetric(ip,timestamp,percentage,load_average,process_counts,threads,io_percent,object.getBoolean("status"));
 
   }
 

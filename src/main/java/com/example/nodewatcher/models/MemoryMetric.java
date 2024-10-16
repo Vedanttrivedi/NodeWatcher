@@ -5,7 +5,7 @@ import io.vertx.sqlclient.Tuple;
 
 import java.sql.Timestamp;
 
-public class Memory_Metric extends Metric
+public class MemoryMetric extends Metric
 {
   private int free;
 
@@ -20,7 +20,7 @@ public class Memory_Metric extends Metric
   private boolean status;
 
 
-  public Memory_Metric(String ip, Timestamp timestamp, int free, int used, int swap, int cached, int disk_space, boolean status)
+  public MemoryMetric(String ip, Timestamp timestamp, int free, int used, int swap, int cached, int disk_space, boolean status)
   {
 
     super(ip,timestamp);
@@ -44,7 +44,7 @@ public class Memory_Metric extends Metric
     return Tuple.of(discoveryId, free, used, swap, cached, disk_space, getTimestamp());
   }
 
-  public static Memory_Metric fromJson(JsonObject object,Timestamp timestamp)
+  public static MemoryMetric fromJson(JsonObject object, Timestamp timestamp)
   {
     var ip = object.getString("ip");
 
@@ -58,7 +58,7 @@ public class Memory_Metric extends Metric
 
     var disk_space = Integer.valueOf(object.getString("disk_space"));
 
-    return new Memory_Metric(ip,timestamp,free,swap,used,cached,disk_space,object.getBoolean("status"));
+    return new MemoryMetric(ip,timestamp,free,swap,used,cached,disk_space,object.getBoolean("status"));
 
   }
 

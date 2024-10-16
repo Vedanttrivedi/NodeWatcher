@@ -1,11 +1,13 @@
 package com.example.nodewatcher.service;
 
 import com.example.nodewatcher.utils.Address;
+import com.example.nodewatcher.utils.Config;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Promise;
 import io.vertx.core.json.JsonObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -25,9 +27,10 @@ public class UnReachableDiscovery extends AbstractVerticle
   public void start(Promise<Void> startPromise) throws Exception
   {
 
-    vertx.eventBus().<JsonObject>localConsumer(Address.UNREACHED_DISCOVERY,handler->{
+    vertx.eventBus().<JsonObject>localConsumer(Address.UNREACHED_DISCOVERY, handler ->
+    {
 
-      unreachedMonitors.put(handler.body().getString("ip"),handler.body());
+      unreachedMonitors.put(handler.body().getString("ip"), handler.body());
 
     });
 
@@ -35,40 +38,34 @@ public class UnReachableDiscovery extends AbstractVerticle
 
     //If Device gets up send to plugin sender and remove from unReachedMonitors
 
-    vertx.setPeriodic(Address.UNREACHBILITY_TIMER,handler->{
+    vertx.setPeriodic(Address.UNREACHBILITY_TIMER, handler ->
+    {
 
       //start iteration over all unreached monitored
 
-      if(!unreachedMonitors.isEmpty())
+      if (!unreachedMonitors.isEmpty())
       {
 
-        unreachedMonitors.forEach((ip,device)->
+        unreachedMonitors.forEach((ip, device) ->
         {
 
-          var data = new JsonObject();
+          vertx.executeBlocking(pingPromise->{
 
-          data.put("ip", ip);
+            pingPromise.complete(Config.ping(ip));
 
-          vertx.eventBus().request(Address.PINGCHECK, data, reply ->
-          {
+            },false,pingPromiseFuture->{
 
-            if(reply.succeeded())
-            {
+              if((boolean) pingPromiseFuture.result())
+              {
+                unreachedMonitors.remove(ip);
 
-              vertx.eventBus().send(Address.UPDATE_DISCOVERY, device);
+                vertx.eventBus().send(Address.UPDATE_DISCOVERY, device);
+              }
+              else
+                System.out.println("Still Down "+ip);
 
-              log.info("Discovery in reach " + device.getString("ip"));
-
-              unreachedMonitors.remove(ip);
-
-            }
-            else
-            {
-
-              System.out.println("Still Down!");
-
-            }
           });
+
         });
       }
 

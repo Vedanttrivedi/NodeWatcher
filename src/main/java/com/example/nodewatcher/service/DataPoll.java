@@ -27,7 +27,8 @@ public class DataPoll extends AbstractVerticle
   @Override
   public void start(Promise<Void> startPromise) throws Exception
   {
-    vertx.eventBus().localConsumer("poll", handler -> {
+    vertx.eventBus().localConsumer("poll", handler ->
+    {
 
       startPolling();
 

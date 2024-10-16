@@ -1,6 +1,5 @@
-package com.example.nodewatcher.db;
+package com.example.nodewatcher.database;
 
-import com.example.nodewatcher.utils.Config;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import io.vertx.core.json.JsonArray;
@@ -10,12 +9,12 @@ import io.vertx.sqlclient.RowSet;
 import io.vertx.sqlclient.SqlClient;
 import io.vertx.sqlclient.Tuple;
 
-public class DiscoveryDB
+public class Discovery
 {
 
   private final SqlClient sqlClient;
 
-  public DiscoveryDB(SqlClient sqlClient)
+  public Discovery(SqlClient sqlClient)
   {
     this.sqlClient = sqlClient;
   }

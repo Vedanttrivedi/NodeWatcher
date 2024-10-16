@@ -36,9 +36,9 @@ public abstract class Metric
 
     return device.getString("free")!=null
 
-      ?Memory_Metric.fromJson(device, timestamp)
+      ? MemoryMetric.fromJson(device, timestamp)
 
-      :Cpu_Metric.fromJson(device,timestamp);
+      : CpuMetric.fromJson(device,timestamp);
 
   }
 

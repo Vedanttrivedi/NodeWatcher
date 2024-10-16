@@ -1,8 +1,8 @@
-package com.example.nodewatcher.routes;
+package com.example.nodewatcher.web.routes;
 
 import io.vertx.ext.web.RoutingContext;
 
-interface RouteOperations
+interface RouteServiceOperations
 {
 
   public void create(RoutingContext context);

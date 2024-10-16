@@ -1,14 +1,14 @@
-package com.example.nodewatcher.service;
+package com.example.nodewatcher.web;
 
-import com.example.nodewatcher.routes.CredentialsRoutes;
-import com.example.nodewatcher.routes.DiscoveryRoutes;
-import com.example.nodewatcher.routes.MonitorRoutes;
+import com.example.nodewatcher.web.routes.Credentials;
+import com.example.nodewatcher.web.routes.Discovery;
+import com.example.nodewatcher.web.routes.Monitor;
 import com.example.nodewatcher.utils.Config;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Promise;
 import io.vertx.ext.web.Router;
 
-public class Client extends AbstractVerticle
+public class Server extends AbstractVerticle
 {
 
   @Override
@@ -19,19 +19,19 @@ public class Client extends AbstractVerticle
 
     var credentialRouter = Router.router(vertx);
 
-    var credentialRoutes = new CredentialsRoutes(credentialRouter);
+    var credentialRoutes = new Credentials(credentialRouter);
 
     credentialRoutes.attach();
 
     var discoveryRouter = Router.router(vertx);
 
-    var discoveryRoutes  = new DiscoveryRoutes();
+    var discoveryRoutes  = new Discovery();
 
     discoveryRoutes.attach(discoveryRouter);
 
     var monitorRouter = Router.router(vertx);
 
-    var monitorRoutes = new MonitorRoutes(monitorRouter);
+    var monitorRoutes = new Monitor(monitorRouter);
 
     monitorRoutes.attach();
 

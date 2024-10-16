@@ -1,14 +1,14 @@
 package com.example.nodewatcher.service;
 
-import com.example.nodewatcher.BootStrap;
-import com.example.nodewatcher.db.MetricDB;
-import com.example.nodewatcher.models.Metric;
+import com.example.nodewatcher.Bootstrap;
+import com.example.nodewatcher.database.Metric;
 import com.example.nodewatcher.utils.Address;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Promise;
 import io.vertx.core.json.JsonObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -17,14 +17,15 @@ public class PluginDataSaver extends AbstractVerticle
 {
   private static final Logger logger = LoggerFactory.getLogger(PluginDataSaver.class);
 
-  private final MetricDB metricDB = new MetricDB(BootStrap.databaseClient);
+  private final Metric metricDB = new Metric(Bootstrap.databaseClient);
 
 
   @Override
   public void start(Promise<Void> startPromise) throws Exception
   {
 
-    vertx.eventBus().<String>localConsumer(Address.DUMPDB, handler -> {
+    vertx.eventBus().<String>localConsumer(Address.DUMPDB, handler ->
+    {
       try
       {
 
@@ -36,17 +37,19 @@ public class PluginDataSaver extends AbstractVerticle
 
         if (device.getBoolean("status"))
         {
-          var metric = Metric.fromJson(device, timestamp);
+          var metric = com.example.nodewatcher.models.Metric.fromJson(device, timestamp);
 
           metricDB.save(metric)
 
-          .onComplete(result -> {
+            .onComplete(result ->
+            {
 
-              if (result.failed()){
+              if (result.failed())
+              {
 
-                  System.out.println("Db result error "+result.cause());
+                System.out.println("Db result error " + result.cause());
               }
-          });
+            });
 
         }
         else

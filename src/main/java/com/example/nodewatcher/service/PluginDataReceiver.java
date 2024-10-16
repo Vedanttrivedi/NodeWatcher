@@ -1,12 +1,10 @@
 package com.example.nodewatcher.service;
 
-import com.example.nodewatcher.BootStrap;
+import com.example.nodewatcher.Bootstrap;
 import com.example.nodewatcher.utils.Address;
-import io.vertx.core.Vertx;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.zeromq.SocketType;
-import org.zeromq.ZContext;
 import org.zeromq.ZMQ;
 
 public class PluginDataReceiver extends Thread
@@ -18,7 +16,7 @@ public class PluginDataReceiver extends Thread
   public PluginDataReceiver()
   {
 
-    this.pullSocket = BootStrap.zContext.createSocket(SocketType.PULL);
+    this.pullSocket = Bootstrap.zContext.createSocket(SocketType.PULL);
 
     pullSocket.connect(Address.PULL_SOCKET);
 
@@ -35,7 +33,7 @@ public class PluginDataReceiver extends Thread
 
         if (message != null)
         {
-          BootStrap.vertx.eventBus().send(Address.DUMPDB, message);
+          Bootstrap.vertx.eventBus().send(Address.DUMPDB, message);
 
         }
       }

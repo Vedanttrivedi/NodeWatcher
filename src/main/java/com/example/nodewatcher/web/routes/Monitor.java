@@ -1,23 +1,23 @@
-package com.example.nodewatcher.routes;
+package com.example.nodewatcher.web.routes;
 
-import com.example.nodewatcher.BootStrap;
-import com.example.nodewatcher.db.MetricDB;
+import com.example.nodewatcher.Bootstrap;
+import com.example.nodewatcher.database.Metric;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.TimeoutHandler;
 import java.util.HashSet;
 
-public class MonitorRoutes
+public class Monitor
 {
 
   private final Router router;
 
   private static HashSet<String> supportedMetrics = new HashSet<>();
 
-  private MetricDB metricDB = new MetricDB(BootStrap.databaseClient);
+  private Metric metricDB = new Metric(Bootstrap.databaseClient);
 
 
-  public MonitorRoutes(Router router)
+  public Monitor(Router router)
   {
     this.router = router;
 

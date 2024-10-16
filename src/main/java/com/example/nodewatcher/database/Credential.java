@@ -1,35 +1,23 @@
-package com.example.nodewatcher.db;
+package com.example.nodewatcher.database;
 
-import com.example.nodewatcher.BootStrap;
-import com.example.nodewatcher.models.Credential;
-import com.example.nodewatcher.utils.Address;
-import com.example.nodewatcher.utils.Config;
 import io.vertx.core.json.JsonArray;
 import io.vertx.sqlclient.SqlClient;
 import io.vertx.sqlclient.Tuple;
-import io.vertx.sqlclient.RowSet;
-import io.vertx.sqlclient.Row;
 import io.vertx.core.Future;
 import io.vertx.core.json.JsonObject;
 
-import javax.crypto.Cipher;
-import javax.crypto.KeyGenerator;
-import javax.crypto.SecretKey;
-import java.nio.file.AccessDeniedException;
-import java.util.Base64;
-
-public class CredentialDB
+public class Credential
 {
 
   private final SqlClient sqlClient;
 
-  public CredentialDB(SqlClient sqlClient)
+  public Credential(SqlClient sqlClient)
   {
     this.sqlClient = sqlClient;
   }
 
 
-  public Future<Void> save(Credential credential)
+  public Future<Void> save(com.example.nodewatcher.models.Credential credential)
   {
     var query = "INSERT INTO Credentials (name, username, password, protocol) VALUES (?, ?, ?, ?)";
 
@@ -101,7 +89,7 @@ public class CredentialDB
 
   }
 
-  public Future<Boolean> updateCredential(String name,Credential credential)
+  public Future<Boolean> updateCredential(String name, com.example.nodewatcher.models.Credential credential)
   {
     String query = "UPDATE Credentials SET name = ?, username = ?, password = ?, protocol = ? WHERE name = ?";
 

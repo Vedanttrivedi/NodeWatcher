@@ -1,26 +1,25 @@
-package com.example.nodewatcher.routes;
+package com.example.nodewatcher.web.routes;
 
-import com.example.nodewatcher.BootStrap;
-import com.example.nodewatcher.db.CredentialDB;
-import com.example.nodewatcher.models.Credential;
+import com.example.nodewatcher.Bootstrap;
+import com.example.nodewatcher.database.Credential;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.BodyHandler;
 import io.vertx.ext.web.handler.TimeoutHandler;
 import java.time.LocalDateTime;
 
-public class CredentialsRoutes implements RouteOperations
+public class Credentials implements RouteServiceOperations
 {
 
-  private final CredentialDB credentialDB;
+  private final Credential credentialDB;
 
   private final  Router router;
 
-  public CredentialsRoutes(Router router)
+  public Credentials(Router router)
   {
     this.router = router;
 
-    credentialDB = new CredentialDB(BootStrap.databaseClient);
+    credentialDB = new Credential(Bootstrap.databaseClient);
   }
 
   public  void attach()
@@ -82,7 +81,7 @@ public class CredentialsRoutes implements RouteOperations
     }
 
     credentialDB.save(
-      new Credential(name, username, password, LocalDateTime.now().toString(), 1))
+      new com.example.nodewatcher.models.Credential(name, username, password, LocalDateTime.now().toString(), 1))
 
       .onSuccess(success->{
         context.response().end("Credentials Added");
@@ -147,7 +146,7 @@ public class CredentialsRoutes implements RouteOperations
       context.response().end("password length must be 8 characters");
 
     credentialDB.updateCredential(name,
-        new Credential(newName, username, password, LocalDateTime.now().toString(), 1))
+        new com.example.nodewatcher.models.Credential(newName, username, password, LocalDateTime.now().toString(), 1))
 
       .onSuccess(successHandler -> {
 
