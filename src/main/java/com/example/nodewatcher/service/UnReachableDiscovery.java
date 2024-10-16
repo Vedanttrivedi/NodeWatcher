@@ -3,7 +3,6 @@ package com.example.nodewatcher.service;
 import com.example.nodewatcher.utils.Address;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Promise;
-import io.vertx.core.eventbus.DeliveryOptions;
 import io.vertx.core.json.JsonObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,7 +49,7 @@ public class UnReachableDiscovery extends AbstractVerticle
 
           data.put("ip", ip);
 
-          vertx.eventBus().request(Address.PINGCHECK, data, new DeliveryOptions().setSendTimeout(3000), reply ->
+          vertx.eventBus().request(Address.PINGCHECK, data, reply ->
           {
 
             if(reply.succeeded())
@@ -85,6 +84,8 @@ public class UnReachableDiscovery extends AbstractVerticle
   @Override
   public void stop(Promise<Void> stopPromise) throws Exception
   {
+
     super.stop(stopPromise);
+
   }
 }

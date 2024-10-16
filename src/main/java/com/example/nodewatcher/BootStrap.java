@@ -9,6 +9,7 @@ import org.zeromq.ZContext;
 
 public class BootStrap
 {
+
   public static final SqlClient databaseClient = DatabaseClient.getClient();
 
   public static final Vertx vertx = Vertx.vertx();
@@ -17,7 +18,6 @@ public class BootStrap
 
   public static void main(String[] args)
   {
-
     vertx.deployVerticle(new HostReachabilityChecker())
 
     .compose(deploymentId->vertx.deployVerticle(new Client()))
@@ -34,20 +34,21 @@ public class BootStrap
 
         if(deploymentResult.succeeded())
         {
+
+          System.out.println("Verticals deployed!");
+
           var pluginDataReceiver = new PluginDataReceiver();
 
           pluginDataReceiver.start();
 
           vertx.deployVerticle(PluginDataSaver.class.getName(),
-          new DeploymentOptions().setInstances(Config.DATA_SAVER_INSTANCES),result->{
+
+            new DeploymentOptions().setInstances(Config.DATA_SAVER_INSTANCES),result->{
 
             if(result.failed())
                 System.out.println("Error "+result.cause().getMessage());
 
             });
-
-          System.out.println("Verticals Deployed!");
-
         }
         else
         {

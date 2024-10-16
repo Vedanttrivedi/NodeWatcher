@@ -9,7 +9,6 @@ import io.vertx.core.Promise;
 import io.vertx.core.json.JsonObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -18,14 +17,8 @@ public class PluginDataSaver extends AbstractVerticle
 {
   private static final Logger logger = LoggerFactory.getLogger(PluginDataSaver.class);
 
-  private final MetricDB metricDB;
+  private final MetricDB metricDB = new MetricDB(BootStrap.databaseClient);
 
-  public PluginDataSaver()
-  {
-
-    this.metricDB = new MetricDB(BootStrap.databaseClient);
-
-  }
 
   @Override
   public void start(Promise<Void> startPromise) throws Exception

@@ -2,7 +2,6 @@ package com.example.nodewatcher.db;
 
 import com.example.nodewatcher.BootStrap;
 import com.example.nodewatcher.utils.Config;
-import io.vertx.core.Vertx;
 import io.vertx.mysqlclient.MySQLConnectOptions;
 import io.vertx.mysqlclient.MySQLPool;
 import io.vertx.sqlclient.*;

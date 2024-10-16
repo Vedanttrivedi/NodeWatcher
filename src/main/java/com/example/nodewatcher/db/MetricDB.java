@@ -1,5 +1,6 @@
 package com.example.nodewatcher.db;
 
+import com.example.nodewatcher.BootStrap;
 import com.example.nodewatcher.models.Cpu_Metric;
 import com.example.nodewatcher.models.Memory_Metric;
 import io.vertx.core.Future;
@@ -10,21 +11,16 @@ import io.vertx.sqlclient.SqlClient;
 import io.vertx.sqlclient.Tuple;
 import com.example.nodewatcher.models.Metric;
 
-import java.util.concurrent.atomic.AtomicReference;
-
 public class MetricDB
 {
-
-  private final SqlClient sqlClient;
+  private final  SqlClient sqlClient;
 
   public MetricDB(SqlClient sqlClient)
   {
-
     this.sqlClient = sqlClient;
-
   }
 
-  public Future<Boolean> save(Metric metric)
+  public  Future<Boolean> save(Metric metric)
   {
 
     Promise<Boolean> promise = Promise.promise();
@@ -62,7 +58,7 @@ public class MetricDB
     return promise.future();
   }
 
-  private String getInsertQuery(Metric metric)
+  private  String getInsertQuery(Metric metric)
   {
 
     if (metric instanceof Memory_Metric)
@@ -73,10 +69,11 @@ public class MetricDB
     {
       return "INSERT INTO CPU_Metric (discoveryId, percentage, load_average, process_counts, threads, io_percent, created_at) VALUES (?,?,?,?,?,?,?)";
     }
+
     return null;  //invalid metric type
   }
 
-  public Future<JsonArray> getMetrics(String discoveryName, String tableName)
+  public  Future<JsonArray> getMetrics(String discoveryName, String tableName)
   {
 
     var query = "SELECT * FROM " + tableName + " WHERE discoveryId = (SELECT id FROM Discovery WHERE name = ?) ORDER BY created_at DESC";
@@ -96,24 +93,7 @@ public class MetricDB
 
   }
 
-  public Future<JsonArray> getMetricsInRange(String discoveryName, String tableName, String startTime, String endTime)
-  {
-    var query = "SELECT * FROM " + tableName + " WHERE discoveryId = (SELECT id FROM Discovery WHERE name = ?) AND created_at BETWEEN ? AND ?";
-
-    return sqlClient.preparedQuery(query)
-      .execute(Tuple.of(discoveryName, startTime, endTime))
-      .map(rows -> {
-
-        var metricsArray = new JsonArray();
-
-        rows.forEach(row -> metricsArray.add(row.toJson()));
-
-        return metricsArray;
-
-      });
-  }
-
-  public Future<JsonArray> getLastNMetrics(String discoveryName, String tableName, int n)
+  public  Future<JsonArray> getLastNMetrics(String discoveryName, String tableName, int n)
   {
 
     var query = "SELECT * FROM " + tableName + " WHERE discoveryId = (SELECT id FROM Discovery WHERE name = ?)  limit ? ";
@@ -139,54 +119,74 @@ public class MetricDB
         return metricsArray;
 
       });
+
   }
 
-  public Future<JsonObject> getAggrMetric(String discoveryName,String tableName,String aggr,String metric)
+  public  Future<JsonObject> getAggrMetric(String discoveryName,String tableName,String aggr,String metric)
   {
-    Promise<JsonObject> promiseData = Promise.promise();
+    try
+    {
+      Promise<JsonObject> promiseData = Promise.promise();
 
-    var futureOfData = promiseData.future();
+      var futureOfData = promiseData.future();
 
-    AtomicReference<String> query = new AtomicReference<>("");
+      sqlClient.preparedQuery("SELECT id FROM Discovery WHERE name = ? ")
 
-    sqlClient.preparedQuery("SELECT id FROM Discovery WHERE name = ? ")
+        .execute(Tuple.of(discoveryName))
 
-    .execute(Tuple.of(discoveryName))
+        .compose(result->{
 
-    .compose(result->{
+          var query = queryMaker(tableName,aggr,metric);
 
-      if(aggr.equals("max"))
-        query.set("SELECT discoveryId,MAX("+metric+") FROM " +tableName+ " WHERE discoveryId = ? GROUP by discoveryId");
+          System.out.println("Sql query "+query);
 
-      else if(aggr.equals("avg"))
-        query.set("SELECT discoveryId,AVG("+metric+")  FROM " +tableName+ " WHERE discoveryId = ? GROUP by discoveryId");
+          var discoveryID = result.iterator().next().getInteger(0);
 
-      else
-        query.set("SELECT discoveryId,MIN("+metric+")  FROM " +tableName+ " WHERE discoveryId = ? GROUP by discoveryId");
 
-      return sqlClient.preparedQuery(query.toString())
-        .execute(Tuple.of(result.iterator().next().getInteger(0)));
-    })
-    .onSuccess(handler->{
+          return sqlClient.preparedQuery("")
+            .execute(Tuple.of(discoveryID,discoveryID));
+        })
+        .onSuccess(handler->{
 
-      var row = handler.iterator().next();
+          var row = handler.iterator().next();
 
-      var payLoad = new JsonObject();
+          var payLoad = new JsonObject();
 
-      payLoad.put("discoveryId",row.getInteger(0));
+          payLoad.put("discoveryId",row.getInteger(0));
 
-      payLoad.put(aggr,row.getInteger(1));
+          payLoad.put(aggr,row.getInteger(1));
 
-      promiseData.complete(payLoad);
+          promiseData.complete(payLoad);
 
-    })
-    .onFailure(handler->{
+        })
 
-      promiseData.fail("Invalid query");
+        .onFailure(handler->{
+          System.out.println(handler.getCause());
+          promiseData.fail(handler.getCause());
 
-    });
+        });
 
-    return futureOfData;
+      return futureOfData;
+
+    }
+    catch (Exception exception)
+    {
+      return Future.failedFuture("OOPS "+exception.getMessage());
+
+    }
   }
 
+  private  String queryMaker(String tableName,String aggr,String secondary_metric)
+  {
+
+
+    return "SELECT discoveryId,"+ secondary_metric+", created_at" +
+      " FROM " + tableName+
+      " WHERE discoveryId = ? " +
+      " AND "+ secondary_metric +
+      " = (SELECT " +aggr+"("+secondary_metric+") " +
+      " FROM "+ tableName+
+      " WHERE discoveryId = ? )";
+
+  }
 }

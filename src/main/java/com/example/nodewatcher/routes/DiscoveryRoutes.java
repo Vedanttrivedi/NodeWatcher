@@ -4,6 +4,7 @@ import com.example.nodewatcher.BootStrap;
 import com.example.nodewatcher.db.DiscoveryDB;
 import com.example.nodewatcher.service.PluginDataSaver;
 import com.example.nodewatcher.utils.Address;
+import com.example.nodewatcher.utils.Config;
 import com.sun.jdi.BooleanType;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Future;
@@ -19,7 +20,7 @@ import org.slf4j.LoggerFactory;
 public class DiscoveryRoutes implements RouteOperations
 {
 
-  private final  DiscoveryDB discoveryDB = new DiscoveryDB(BootStrap.databaseClient);
+  private final DiscoveryDB discoveryDB = new DiscoveryDB(BootStrap.databaseClient);
 
   private static final org.slf4j.Logger logger = LoggerFactory.getLogger(DiscoveryRoutes.class);
 
@@ -240,6 +241,14 @@ public class DiscoveryRoutes implements RouteOperations
 
       var ip = context.request().getFormAttribute("ip");
 
+      if(!Config.validIp(ip))
+      {
+        context.response().end("Invalid Ip");
+
+        return;
+
+      }
+
       var name = context.request().getFormAttribute("name");
 
       var credentialName = context.request().getFormAttribute("credential_name");
@@ -257,7 +266,8 @@ public class DiscoveryRoutes implements RouteOperations
             .map(reply -> new JsonObject().put("credential", credential).put("sshReply", reply.body()));
 
         })
-        .compose(result -> {
+
+      .compose(result -> {
 
           var credential = result.getJsonObject("credential");
 
@@ -286,9 +296,9 @@ public class DiscoveryRoutes implements RouteOperations
 
         })
 
-        .onSuccess(result -> context.response().end(result))
+      .onSuccess(result -> context.response().end(result))
 
-        .onFailure(err -> context.response().end(err.getMessage()));
+      .onFailure(err -> context.response().end(err.getMessage()));
 
     }
     catch (Exception exception)

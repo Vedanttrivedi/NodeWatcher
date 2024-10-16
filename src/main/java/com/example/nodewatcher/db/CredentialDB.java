@@ -101,7 +101,8 @@ public class CredentialDB
 
   }
 
-  public Future<Void> updateCredential(String name,Credential credential) {
+  public Future<Boolean> updateCredential(String name,Credential credential)
+  {
     String query = "UPDATE Credentials SET name = ?, username = ?, password = ?, protocol = ? WHERE name = ?";
 
     return sqlClient
@@ -109,16 +110,7 @@ public class CredentialDB
 
       .execute(Tuple.of(credential.name(), credential.username(), credential.password(), credential.protocol(), name))
 
-      .flatMap(result -> {
-        if (result.rowCount() > 0)
-        {
-          return Future.succeededFuture();
-        }
-        else
-        {
-          return Future.failedFuture("No rows were updated, credential not found");
-        }
-      });
+      .map(result -> result.rowCount() > 0);
   }
 
 }

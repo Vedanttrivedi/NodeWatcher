@@ -4,19 +4,43 @@ import com.example.nodewatcher.BootStrap;
 import com.example.nodewatcher.db.MetricDB;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
+import io.vertx.ext.web.handler.TimeoutHandler;
+import java.util.HashSet;
 
 public class MonitorRoutes
 {
 
-  private final MetricDB metricDB;
-
   private final Router router;
+
+  private static HashSet<String> supportedMetrics = new HashSet<>();
+
+  private MetricDB metricDB = new MetricDB(BootStrap.databaseClient);
+
 
   public MonitorRoutes(Router router)
   {
     this.router = router;
 
-    this.metricDB = new MetricDB(BootStrap.databaseClient);
+    supportedMetrics.add("free");
+
+    supportedMetrics.add("cache");
+
+    supportedMetrics.add("disc_used");
+
+    supportedMetrics.add("swap");
+
+    supportedMetrics.add("used");
+
+    supportedMetrics.add("load_average");
+
+    supportedMetrics.add("threads");
+
+    supportedMetrics.add("io_percent");
+
+    supportedMetrics.add("percentage");
+
+    supportedMetrics.add("process_counts");
+
   }
 
   public void attach()
@@ -24,19 +48,14 @@ public class MonitorRoutes
 
     router.get("/:discoveryName/:metricType").handler(this::getMetrics);
 
-    router.get("/:discoveryName/:metricType/range").handler(this::getMetricsInRange);
+    router.get("/:discoveryName/:metricType/:n").handler(this::getLastNMetrics);
 
-    router.get("/:discoveryName/:metricType/:n").handler(this::getTopNMetrics);
-
-    router.get("/:discoveryName/:metricType/:aggr/:secondary_metric").handler(this::getMetricAggregation);
-
-
-  }
-  private  static String getTableName(String memory)
-  {
-    return memory.equals("memory")?"Memory_Metric":"CPU_Metric";
+    router.get("/:discoveryName/:metricType/:aggr/:secondary_metric")
+      .handler(TimeoutHandler.create(3000))
+      .handler(this::getMetricAggregation);
 
   }
+
 
   private void getMetrics(RoutingContext ctx)
   {
@@ -61,7 +80,7 @@ public class MonitorRoutes
     }
   }
 
-  private void getTopNMetrics(RoutingContext ctx)
+  private void getLastNMetrics(RoutingContext ctx)
   {
     try
     {
@@ -75,6 +94,7 @@ public class MonitorRoutes
 
         .onSuccess(metrics -> ctx.response().end(metrics.encodePrettily()))
         .onFailure(err -> ctx.response().setStatusCode(500).end(err.getMessage()));
+
     }
 
     catch (NumberFormatException exception)
@@ -87,22 +107,7 @@ public class MonitorRoutes
       ctx.response().end("Something went wrong! Try again!");
     }
   }
-  private void getMetricsInRange(RoutingContext ctx)
-  {
-    var discoveryName = ctx.pathParam("discoveryName");
 
-    var metricType = ctx.pathParam("metricType");
-
-    var tableName = metricType + "_metric";
-
-    var startTime = ctx.queryParam("startTime").get(0);
-
-    var endTime = ctx.queryParam("endTime").get(0);
-
-    metricDB.getMetricsInRange(discoveryName, tableName, startTime, endTime)
-      .onSuccess(metrics -> ctx.response().end(metrics.encodePrettily()))
-      .onFailure(err -> ctx.response().setStatusCode(500).end(err.getMessage()));
-  }
   private void getMetricAggregation(RoutingContext ctx)
   {
 
@@ -112,14 +117,21 @@ public class MonitorRoutes
 
     var aggr = ctx.pathParam("aggr");
 
-    var secondry_metric = ctx.pathParam("secondary_metric");
+    var secondary_metric = ctx.pathParam("secondary_metric");
+
+    if(!supportedMetrics.contains(secondary_metric))
+    {
+      ctx.response().end("Invalid Secondary Metric Type!");
+
+      return;
+    }
 
     if(aggr.equals("max") || aggr.equals("avg") || aggr.equals("min"))
     {
 
       var tableName = getTableName(metricType);
 
-      metricDB.getAggrMetric(discoveryName, tableName,aggr,secondry_metric)
+      metricDB.getAggrMetric(discoveryName, tableName,aggr,secondary_metric)
 
         .onSuccess(metrics -> ctx.response().end(metrics.encodePrettily()))
 
@@ -132,4 +144,11 @@ public class MonitorRoutes
 
     }
   }
+
+  private  static String getTableName(String memory)
+  {
+    return memory.equals("memory")?"Memory_Metric":"CPU_Metric";
+
+  }
+
 }

@@ -4,7 +4,6 @@ import com.example.nodewatcher.BootStrap;
 import com.example.nodewatcher.utils.Address;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Promise;
-import io.vertx.core.eventbus.DeliveryOptions;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.sqlclient.Row;
@@ -85,7 +84,7 @@ public class PluginInitializer extends AbstractVerticle
   {
     var pingBody = new JsonObject().put("ip", ip);
 
-    vertx.eventBus().request(Address.PINGCHECK, pingBody, new DeliveryOptions().setSendTimeout(3000), reply -> {
+    vertx.eventBus().request(Address.PINGCHECK, pingBody, reply -> {
 
       var discoveryAndCredential = new JsonObject()
         .put("discoveryName", row.getString(0))

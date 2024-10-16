@@ -8,28 +8,33 @@ import io.vertx.core.eventbus.Message;
 import io.vertx.core.json.JsonObject;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import java.util.concurrent.TimeUnit;
 
 public class HostReachabilityChecker extends AbstractVerticle
 {
+
   @Override
   public void start(Promise<Void> startPromise) throws Exception
   {
+
     vertx.eventBus().<JsonObject>localConsumer(Address.PINGCHECK, this::handlePingRequest);
 
     vertx.eventBus().<JsonObject>localConsumer(Address.SSHCHECK, this::handleSSHRequest);
 
     startPromise.complete();
+
   }
 
   private void handlePingRequest(Message<JsonObject> message)
   {
 
-    vertx.executeBlocking(pingResultPromise->{
+      vertx.executeBlocking(pingResultPromise->{
 
-      var processBuilder  = new ProcessBuilder("fping","-c","3",message.body().getString("ip"));
+      var processBuilder  = new ProcessBuilder("ping","-c 2",message.body().getString("ip"));
 
       try
       {
+
         var process = processBuilder.start();
 
         var reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
@@ -41,18 +46,36 @@ public class HostReachabilityChecker extends AbstractVerticle
         while((line = reader.readLine())!=null)
         {
 
-          if(line.contains("0% loss"))
+          if(line.contains("ttl"))
           {
             counts++;
+
             break;
           }
 
         }
+
+        var status = process.waitFor(3, TimeUnit.SECONDS);
+
+        if(!status || counts ==0)
+        {
+
+          System.out.println("Not Completed");
+
+          pingResultPromise.fail("Device is Down!");
+
+          process.destroy();
+
+        }
+
         if(counts > 0)
+        {
+          System.out.println("Completed");
+
           pingResultPromise.complete(true);
 
-        else
-          pingResultPromise.fail("Device is Down!");
+        }
+
 
       }
       catch (Exception exception)
@@ -68,19 +91,18 @@ public class HostReachabilityChecker extends AbstractVerticle
       if(pingResultFuture.succeeded())
       {
 
-          message.reply("Device In Reach");
+        message.reply("Device In Reach");
 
       }
       else
       {
-
         message.fail(1,"Device not in reach!");
 
       }
     });
 
-
   }
+
   private void handleSSHRequest(Message<JsonObject> message)
   {
     var data = message.body();
@@ -91,8 +113,8 @@ public class HostReachabilityChecker extends AbstractVerticle
 
     var username = data.getString("username");
 
-    vertx.executeBlocking(sshFuture->{
-
+    vertx.executeBlocking(sshFuture ->
+    {
       try
       {
         var jsch = new JSch();
@@ -117,17 +139,16 @@ public class HostReachabilityChecker extends AbstractVerticle
         sshFuture.fail("Authentication Error!");
       }
 
-    },false,sshFutureRes->
+    }, false, sshFutureRes ->
     {
-      if(sshFutureRes.succeeded()){
+      if (sshFutureRes.succeeded())
+      {
 
         message.reply("Discovered");
       }
       else
-        message.fail(1,"Authentication ERROR");
-
+        message.fail(1, "Authentication ERROR");
     });
 
   }
-
 }

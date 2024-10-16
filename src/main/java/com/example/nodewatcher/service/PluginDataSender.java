@@ -14,7 +14,7 @@ public class PluginDataSender extends AbstractVerticle
 {
   private static final Logger log = LoggerFactory.getLogger(PluginDataSender.class);
 
-  private ZMQ.Socket socket;
+  private final ZMQ.Socket socket;
 
   private Boolean pollStarted;
 
@@ -32,6 +32,7 @@ public class PluginDataSender extends AbstractVerticle
   @Override
   public void start(Promise<Void> startPromise)
   {
+
        vertx.eventBus().<JsonArray>localConsumer(Address.PLUGIN_DATA_SENDER, handler->{
 
          send(handler.body());

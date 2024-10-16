@@ -2,7 +2,6 @@ package com.example.nodewatcher.service;
 
 import com.example.nodewatcher.routes.CredentialsRoutes;
 import com.example.nodewatcher.routes.DiscoveryRoutes;
-import com.example.nodewatcher.routes.ErrorRoutes;
 import com.example.nodewatcher.routes.MonitorRoutes;
 import com.example.nodewatcher.utils.Config;
 import io.vertx.core.AbstractVerticle;
@@ -59,6 +58,7 @@ public class Client extends AbstractVerticle
         {
           startPromise.fail("Not Able to listen on port " + Config.HTTP_PORT);
         }
+
       });
 
   }

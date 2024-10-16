@@ -7,9 +7,9 @@ import java.sql.Timestamp;
 public abstract class Metric
 {
 
-  private String ip;
+  private final String ip;
 
-  private Timestamp timestamp;
+  private final Timestamp timestamp;
 
   public Metric(String ip, Timestamp timestamp)
   {
@@ -35,7 +35,9 @@ public abstract class Metric
   {
 
     return device.getString("free")!=null
+
       ?Memory_Metric.fromJson(device, timestamp)
+
       :Cpu_Metric.fromJson(device,timestamp);
 
   }
